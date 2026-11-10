@@ -1,0 +1,98 @@
+# Docker test environment: Postgres + API + web, built from this repo.
+#
+#   docker compose -f docker-compose.test.yml up -d --build      # start (http://localhost:8080)
+#   docker compose -f docker-compose.test.yml --profile e2e run --rm e2e   # run the end-to-end check
+#   docker compose -f docker-compose.test.yml down -v            # stop and wipe all data
+#
+# NODE_ENV=test + DEV_LOGIN=true enables "Developer sign-in". Never expose this stack to the internet.
+# Microsoft sign-in works too if AZURE_* are set in .env.docker (see .env.docker.example).
+name: integer-erp-test
+
+x-db-url: &db-url postgresql://erp:erp_test@db:5432/integer_erp
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp_test
+      POSTGRES_DB: integer_erp
+    ports:
+      - "5433:5432" # for psql / Prisma Studio from the host; 5432 stays free for your own Postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp -d integer_erp"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: apply migrations, seed users + RACI (+ demo sites unless SEED_DEMO=false).
+  migrate:
+    image: integer-erp-api:test
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["sh", "-c", "node_modules/.bin/prisma migrate deploy --schema prisma/schema.prisma && node dist/seed.js"]
+    environment:
+      DATABASE_URL: *db-url
+      SEED_DEMO: ${SEED_DEMO:-true}
+      SEED_RESET_DEMO: ${SEED_RESET_DEMO:-false}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads # sample documents land where the API reads them
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    image: integer-erp-api:test
+    env_file:
+      - path: .env.docker
+        required: false
+    environment:
+      DATABASE_URL: *db-url
+      NODE_ENV: test
+      PORT: "3000"
+      DEV_LOGIN: ${DEV_LOGIN:-true}
+      JWT_SECRET: ${JWT_SECRET:-docker-test-only-jwt-secret-0123456789abcdef}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-docker-test-only-refresh-secret-0123456789}
+      CORS_ORIGINS: http://localhost:8080
+      UPLOAD_DIR: /app/uploads
+      AZURE_REDIRECT_URI: ${AZURE_REDIRECT_URI:-http://localhost:8080/api/auth/sso/azure/callback}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    image: integer-erp-web:test
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    volumes:
+      - ./infra/docker/nginx.test.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # End-to-end check: walks one site through SOP steps 1–9 through the web proxy.
+  e2e:
+    image: node:20-alpine
+    profiles: ["e2e"]
+    working_dir: /e2e
+    volumes:
+      - ./tools/e2e:/e2e:ro
+    environment:
+      BASE_URL: http://web/api
+    command: ["node", "ericsson-flow.mjs"]
+    depends_on:
+      web:
+        condition: service_started
+
+volumes:
+  db-data:
+  uploads:

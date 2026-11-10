@@ -1,0 +1,31 @@
+{
+  "name": "integer-erp",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean",
+    "test:e2e": "node tools/e2e/ericsson-flow.mjs",
+    "docker:test:up": "docker compose -f docker-compose.test.yml up -d --build",
+    "docker:test:e2e": "docker compose -f docker-compose.test.yml --profile e2e run --rm e2e",
+    "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f api",
+    "docker:test:down": "docker compose -f docker-compose.test.yml down -v"
+  },
+  "devDependencies": {
+    "@eslint/js": "8.57.1",
+    "@typescript-eslint/eslint-plugin": "7.18.0",
+    "@typescript-eslint/parser": "7.18.0",
+    "eslint": "8.57.1",
+    "eslint-plugin-react-hooks": "4.6.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

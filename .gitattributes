@@ -1,0 +1,9 @@
+# Store and check out text files with LF, whatever each developer's git settings are.
+# Dockerfiles, nginx and shell commands run inside Linux containers.
+* text=auto eol=lf
+
+*.pdf binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

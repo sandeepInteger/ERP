@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+/* Design tokens, taken from the HRMS app (hrms-ClaudeCode/apps/web/src/styles/tokens.css)
+   so both Integer products share one visual language. Tailwind generates utilities from
+   every --color-* / --radius-* / --shadow-* below (bg-brand-600, text-surface-500, ...). */
+
+@theme {
+  --spacing: 0.25rem;
+
+  --font-display: "DM Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Brand: muted steel blue. */
+  --color-brand-50: #f4f6f9;
+  --color-brand-100: #e3e9f1;
+  --color-brand-200: #cbd7e3;
+  --color-brand-300: #a9bccf;
+  --color-brand-400: #839db8;
+  --color-brand-500: #5b7fa6;
+  --color-brand-600: #3d5e82;
+  --color-brand-700: #2e4863;
+  --color-brand-900: #1c2c3d;
+  --color-brand-hover: #2e4863;
+
+  /* Surface: slate scale. 0–300 are backgrounds/borders, 500–900 are text. */
+  --color-surface-0: #ffffff;
+  --color-surface-50: #f8fafc;
+  --color-surface-100: #f1f5f9;
+  --color-surface-200: #e2e8f0;
+  --color-surface-300: #cbd5e1;
+  --color-surface-400: #94a3b8;
+  --color-surface-500: #64748b;
+  --color-surface-600: #475569;
+  --color-surface-700: #334155;
+  --color-surface-800: #1e293b;
+  --color-surface-900: #0f172a;
+
+  /* Status accents (icons, solid buttons). Pill pairs are the --color-*-bg/fg below. */
+  --color-success: #4b9363;
+  --color-warning: #c08a3e;
+  --color-error: #c05656;
+  --color-info: #5b7fa6;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+:root {
+  color-scheme: light;
+
+  /* Height of the sticky TopHeaderBar. */
+  --app-header-h: 53px;
+
+  /* Semantic pill pairs used by Badge. */
+  --color-success-bg: #dcfce7;
+  --color-success-fg: #166534;
+  --color-error-bg: #fee2e2;
+  --color-error-fg: #991b1b;
+  --color-warning-bg: #fef3c7;
+  --color-warning-fg: #92400e;
+  --color-info-bg: #dbeafe;
+  --color-info-fg: #1e40af;
+  --color-info-accent: #2563eb;
+  --color-accent-bg: #f3e8ff;
+  --color-accent-fg: #5b21b6;
+  --color-neutral-bg: #f3f4f6;
+  --color-neutral-fg: #374151;
+}
+
+/* Dark mode follows the operating system. Surface steps invert; text steps invert the other way. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-surface-0: #111827;
+    --color-surface-50: #0b1220;
+    --color-surface-100: #1a2332;
+    --color-surface-200: #263244;
+    --color-surface-300: #334155;
+    --color-surface-400: #64748b;
+    --color-surface-500: #94a3b8;
+    --color-surface-600: #cbd5e1;
+    --color-surface-700: #e2e8f0;
+    --color-surface-800: #f1f5f9;
+    --color-surface-900: #f8fafc;
+
+    --color-brand-50: #16263a;
+    --color-brand-100: #1d3149;
+    --color-brand-500: #7f9fc4;
+    --color-brand-600: #5b7fa6;
+    --color-brand-700: #a9bccf;
+    --color-brand-hover: #4a6c93;
+
+    --color-success-bg: #12301f;
+    --color-success-fg: #86efac;
+    --color-error-bg: #3a1717;
+    --color-error-fg: #fca5a5;
+    --color-warning-bg: #3a2a0f;
+    --color-warning-fg: #fcd34d;
+    --color-info-bg: #142640;
+    --color-info-fg: #93c5fd;
+    --color-accent-bg: #2a1a44;
+    --color-accent-fg: #d8b4fe;
+    --color-neutral-bg: #1f2937;
+    --color-neutral-fg: #d1d5db;
+  }
+}
+
+html,
+body {
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-display);
+  background-color: var(--color-surface-50);
+  color: var(--color-surface-900);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}

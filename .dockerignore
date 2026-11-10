@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+**/dist
+**/.turbo
+**/*.tsbuildinfo
+**/uploads
+**/logs
+.git
+.vscode
+.idea
+.claude
+.env
+**/.env
+**/.env.*
+!.env.example
+docs
+prototypes

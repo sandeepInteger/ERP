@@ -1,0 +1,403 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+// Mirrored in packages/types/src — keep both in step.
+
+enum Role {
+  ADMIN
+  SALES_LEADER
+  OPS_LEADER
+  PROJECT_MANAGER
+  ASSOCIATE_PM
+  DELIVERY_LEAD
+  COORDINATOR
+  FINANCE
+  VIEWER
+}
+
+enum EricssonStep {
+  DOCS_RECEIVED
+  CROSS_VERIFICATION
+  SOV_RFX
+  MATERIALS
+  EXECUTION
+  VSS_AE202
+  INVOICING
+  CLOSED
+}
+
+enum EricssonScope {
+  IBS_ICI
+  BBU_SWAP
+  MODERNIZATION
+  MACRO_INSTALL
+}
+
+enum EricssonDocType {
+  SOV
+  BOM
+  RFDS
+  RFX
+  MATERIAL_RECEIPT
+  AE202
+  CR_APPROVAL
+  INVOICE
+  PHOTO
+  OTHER
+}
+
+enum MaterialStatus {
+  CLIENT_SUPPLIED
+  IN_STOCK
+  TO_ORDER
+  ORDERED
+  SHIPPED
+  RECEIVED
+  BACK_ORDERED
+}
+
+enum ChangeRequestType {
+  EXTRA_VISIT
+  SCOPE_DEVIATION
+  SUB_VENDOR
+  EXTRA_MATERIAL
+}
+
+enum ChangeRequestStatus {
+  PM_REVIEW
+  SUBMITTED
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum VssOutcome {
+  PASSED
+  PASSED_WITH_PUNCH_LIST
+  FAILED
+}
+
+// ─── Users, sessions, audit ──────────────────────────────────────────────────
+// People sign in with Microsoft. There is no auto-provisioning: an admin adds the
+// user first (email + role), then their first Microsoft sign-in links the account.
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  firstName        String
+  lastName         String
+  designation      String?
+  role             Role
+  isActive         Boolean   @default(true)
+  azureOid         String?   @unique
+  tokenVersion     Int       @default(0)
+  refreshTokenHash String?
+  lastLoginAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  sessions  UserSession[]
+  auditLogs AuditLog[]
+
+  ericssonSitesAsPm           EricssonSite[]          @relation("SitePm")
+  ericssonSitesAsApm          EricssonSite[]          @relation("SiteApm")
+  ericssonSitesAsDeliveryLead EricssonSite[]          @relation("SiteDeliveryLead")
+  ericssonSitesAsCoordinator  EricssonSite[]          @relation("SiteCoordinator")
+  ericssonSitesCreated        EricssonSite[]          @relation("SiteCreatedBy")
+  ericssonDocuments           EricssonDocument[]
+  ericssonDiscrepanciesRaised EricssonDiscrepancy[]   @relation("DiscrepancyRaisedBy")
+  ericssonDiscrepanciesClosed EricssonDiscrepancy[]   @relation("DiscrepancyResolvedBy")
+  ericssonClientQueries       EricssonClientQuery[]
+  ericssonCrsRaised           EricssonChangeRequest[] @relation("CrRaisedBy")
+  ericssonCrsReviewed         EricssonChangeRequest[] @relation("CrReviewedBy")
+  ericssonDailyLogs           EricssonDailyLog[]
+  ericssonSiteEvents          EricssonSiteEvent[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id        String    @id @default(cuid())
+  userId    String
+  sessionId String    @unique @default(cuid())
+  ip        String
+  userAgent String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("user_sessions")
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String
+  sessionId    String
+  eventType    String
+  resourceType String?
+  resourceId   String?
+  ip           String
+  userAgent    String
+  statusCode   Int?
+  path         String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// RACI matrix per client workflow (SOP Appendix B). Seeded from the SOP; edited by admins.
+model RaciRule {
+  id          String   @id @default(cuid())
+  client      String
+  taskKey     String
+  task        String
+  rank        Int
+  responsible Role[]
+  accountable Role[]
+  consulted   Role[]
+  informed    Role[]
+  updatedAt   DateTime @updatedAt
+
+  @@unique([client, taskKey])
+  @@map("raci_rules")
+}
+
+// ─── Ericsson IBS ────────────────────────────────────────────────────────────
+// One row per site assigned by Ericsson. The step column follows SOP steps 1–9;
+// the per-step dates below record when each gate was passed.
+
+model EricssonSite {
+  id            String        @id @default(cuid())
+  siteCode      String        @unique
+  ericssonRef   String?
+  venueName     String
+  address       String?
+  scope         EricssonScope
+  venueSqft     Int?
+  clientPmName  String?
+  clientPmEmail String?
+  targetDate    DateTime?     @db.Date
+  notes         String?
+
+  step          EricssonStep @default(DOCS_RECEIVED)
+  stepChangedAt DateTime     @default(now())
+
+  pmId           String?
+  apmId          String?
+  deliveryLeadId String?
+  coordinatorId  String?
+
+  // Step 2–3: SOV
+  verificationLoops Int       @default(0)
+  sovValue          Decimal?  @db.Decimal(12, 2)
+  sovVersion        Int?
+  sovAcceptedAt     DateTime?
+
+  // Step 3–4: RFX
+  rfxNumber      String?
+  rfxRequestedAt DateTime?
+  rfxReceivedAt  DateTime?
+  rfxAcceptedAt  DateTime?
+
+  // Step 5
+  executionStartedAt DateTime?
+  sowCompletedAt     DateTime?
+
+  // Step 7
+  vssDate          DateTime?   @db.Date
+  vssOutcome       VssOutcome?
+  ae202SubmittedAt DateTime?
+  ae202StampedAt   DateTime?
+
+  // Step 9
+  srmInvoiceNumber  String?
+  invoiceUploadedAt DateTime?
+  invoiceApprovedAt DateTime?
+  closedAt          DateTime?
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pm           User? @relation("SitePm", fields: [pmId], references: [id])
+  apm          User? @relation("SiteApm", fields: [apmId], references: [id])
+  deliveryLead User? @relation("SiteDeliveryLead", fields: [deliveryLeadId], references: [id])
+  coordinator  User? @relation("SiteCoordinator", fields: [coordinatorId], references: [id])
+  createdBy    User  @relation("SiteCreatedBy", fields: [createdById], references: [id])
+
+  documents      EricssonDocument[]
+  discrepancies  EricssonDiscrepancy[]
+  clientQueries  EricssonClientQuery[]
+  materials      EricssonMaterialLine[]
+  changeRequests EricssonChangeRequest[]
+  dailyLogs      EricssonDailyLog[]
+  events         EricssonSiteEvent[]
+
+  @@index([step])
+  @@map("ericsson_sites")
+}
+
+model EricssonDocument {
+  id           String          @id @default(cuid())
+  siteId       String
+  type         EricssonDocType
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  storageKey   String
+  version      Int             @default(1)
+  uploadedById String
+  uploadedAt   DateTime        @default(now())
+
+  site       EricssonSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  uploadedBy User         @relation(fields: [uploadedById], references: [id])
+
+  @@index([siteId])
+  @@map("ericsson_documents")
+}
+
+// Step 2: one row per line where SOV, BOM and RFDS disagree.
+model EricssonDiscrepancy {
+  id           String    @id @default(cuid())
+  siteId       String
+  item         String
+  sovValue     String?
+  bomValue     String?
+  rfdsValue    String?
+  note         String?
+  isResolved   Boolean   @default(false)
+  resolution   String?
+  raisedById   String
+  resolvedById String?
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+
+  site       EricssonSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  raisedBy   User         @relation("DiscrepancyRaisedBy", fields: [raisedById], references: [id])
+  resolvedBy User?        @relation("DiscrepancyResolvedBy", fields: [resolvedById], references: [id])
+
+  @@index([siteId])
+  @@map("ericsson_discrepancies")
+}
+
+// Step 2: the question thread with the Ericsson PM. OUTBOUND = sent by Integer,
+// INBOUND = the Ericsson PM's reply, logged by whoever received it.
+model EricssonClientQuery {
+  id        String   @id @default(cuid())
+  siteId    String
+  direction String
+  body      String
+  authorId  String
+  createdAt DateTime @default(now())
+
+  site   EricssonSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  author User         @relation(fields: [authorId], references: [id])
+
+  @@index([siteId])
+  @@map("ericsson_client_queries")
+}
+
+// Step 4: BOM lines and what Integer has to order for them.
+model EricssonMaterialLine {
+  id                String         @id @default(cuid())
+  siteId            String
+  item              String
+  bomQty            Int
+  clientSuppliedQty Int            @default(0)
+  orderQty          Int            @default(0)
+  orderRef          String?
+  shipTo            String?
+  eta               DateTime?      @db.Date
+  unitCost          Decimal?       @db.Decimal(12, 2)
+  status            MaterialStatus
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  site EricssonSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId])
+  @@map("ericsson_material_lines")
+}
+
+// Steps 6 and 8: change requests, a parallel track to the site steps.
+// total = amount + vendorQuote × (1 + passThroughPct / 100).
+model EricssonChangeRequest {
+  id             String              @id @default(cuid())
+  number         Int                 @unique @default(autoincrement())
+  siteId         String
+  type           ChangeRequestType
+  title          String
+  reason         String
+  extraDays      Decimal?            @db.Decimal(4, 1)
+  amount         Decimal             @default(0) @db.Decimal(12, 2)
+  vendorQuote    Decimal             @default(0) @db.Decimal(12, 2)
+  passThroughPct Decimal             @default(0) @db.Decimal(5, 2)
+  total          Decimal             @db.Decimal(12, 2)
+  status         ChangeRequestStatus @default(PM_REVIEW)
+  raisedById     String
+  reviewedById   String?
+  reviewedAt     DateTime?
+  submittedAt    DateTime?
+  decidedAt      DateTime?
+  decisionNote   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  site       EricssonSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  raisedBy   User         @relation("CrRaisedBy", fields: [raisedById], references: [id])
+  reviewedBy User?        @relation("CrReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([siteId])
+  @@index([status])
+  @@map("ericsson_change_requests")
+}
+
+// Step 5: daily progress from the field.
+model EricssonDailyLog {
+  id          String   @id @default(cuid())
+  siteId      String
+  workDate    DateTime @db.Date
+  summary     String
+  crewCount   Int
+  hoursEach   Decimal  @db.Decimal(4, 1)
+  blocked     Boolean  @default(false)
+  blockerNote String?
+  authorId    String
+  createdAt   DateTime @default(now())
+
+  site   EricssonSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  author User         @relation(fields: [authorId], references: [id])
+
+  @@index([siteId, workDate])
+  @@map("ericsson_daily_logs")
+}
+
+// Human-readable activity trail shown on the site page.
+model EricssonSiteEvent {
+  id        String   @id @default(cuid())
+  siteId    String
+  actorId   String?
+  type      String
+  message   String
+  createdAt DateTime @default(now())
+
+  site  EricssonSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  actor User?        @relation(fields: [actorId], references: [id])
+
+  @@index([siteId, createdAt])
+  @@map("ericsson_site_events")
+}
