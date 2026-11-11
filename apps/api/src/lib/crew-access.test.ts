@@ -34,6 +34,16 @@ describe("crewMayCall", () => {
     expect(crewMayCall("GET", undefined)).toBe(false);
   });
 
+  it("FEs check in and out and send their own location, but never see others' locations", () => {
+    expect(crewMayCall("GET", "/api/field/visits/current")).toBe(true);
+    expect(crewMayCall("POST", "/api/field/sites/:id/check-in")).toBe(true);
+    expect(crewMayCall("POST", "/api/field/visits/:id/points")).toBe(true);
+    expect(crewMayCall("POST", "/api/field/visits/:id/check-out")).toBe(true);
+    expect(crewMayCall("GET", "/api/ericsson/sites/:id/visits")).toBe(false);
+    expect(crewMayCall("GET", "/api/ericsson/visits/:id/points")).toBe(false);
+    expect(crewMayCall("POST", "/api/ericsson/visits/:id/check-out")).toBe(false);
+  });
+
   it("matches the method too", () => {
     expect(crewMayCall("DELETE", "/api/notifications/read-all")).toBe(false);
   });

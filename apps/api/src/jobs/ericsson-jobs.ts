@@ -7,6 +7,9 @@ import { notifyList, notifyUsers } from "../lib/notify.js";
 import { loadWorkSites } from "../modules/ericsson/my-work.service.js";
 import { siteTasks } from "../modules/ericsson/my-work.logic.js";
 import { bimonthlyPeriod } from "../modules/ericsson/reports.logic.js";
+import { shouldAutoClose } from "../modules/ericsson/visits.logic.js";
+import { logEvent } from "../modules/ericsson/ericsson.shared.js";
+import { FE_VISIT_AUTO_CLOSE_HOURS } from "@erp/types";
 import { escalationsDue, isWeekdayAfter, localIsoDate, reportDayAfter } from "./ericsson-jobs.logic.js";
 
 // Scheduled Ericsson notifications. Every job is idempotent (dedupe keys), so running it
@@ -14,12 +17,12 @@ import { escalationsDue, isWeekdayAfter, localIsoDate, reportDayAfter } from "./
 const CLIENT = "ERICSSON";
 const DIGEST_HOUR = Number(process.env["DIGEST_HOUR"] ?? 8);
 
-export interface JobSummary { escalations: number; standup: boolean; report: boolean }
+export interface JobSummary { escalations: number; standup: boolean; report: boolean; visitsClosed: number }
 
 export async function runEricssonJobs(app: FastifyInstance, now = new Date()): Promise<JobSummary> {
   const sites = await loadWorkSites(app.db);
   const tasks = sites.flatMap((s) => siteTasks(s, now));
-  const summary: JobSummary = { escalations: 0, standup: false, report: false };
+  const summary: JobSummary = { escalations: 0, standup: false, report: false, visitsClosed: 0 };
 
   // 1. Escalations.
   const rules = await app.db.escalationRule.findMany({ where: { client: CLIENT }, orderBy: { level: "asc" } });
@@ -83,6 +86,27 @@ export async function runEricssonJobs(app: FastifyInstance, now = new Date()): P
       dedupeKey: `revcost:${p.from}`,
     });
     summary.report = true;
+  }
+
+  // 4. Site visits an FE forgot to check out of: close them (location sharing stops) and tell the FE and their manager.
+  const open = await app.db.ericssonSiteVisit.findMany({
+    where: { checkOutAt: null, checkInAt: { lt: new Date(now.getTime() - FE_VISIT_AUTO_CLOSE_HOURS * 3_600_000) } },
+    select: { id: true, siteId: true, checkInAt: true, checkOutAt: true, user: { select: { id: true, firstName: true, lastName: true, managerId: true } }, site: { select: { siteCode: true } } },
+  });
+  for (const v of open.filter((x) => shouldAutoClose(x, now))) {
+    const { count } = await app.db.ericssonSiteVisit.updateMany({ where: { id: v.id, checkOutAt: null }, data: { checkOutAt: now, checkOutBy: "AUTO" } });
+    if (!count) continue;
+    const name = `${v.user.firstName} ${v.user.lastName}`;
+    await logEvent(app.db, v.siteId, null, "CHECK_OUT", `${name} was checked out automatically after ${FE_VISIT_AUTO_CLOSE_HOURS} hours`);
+    await notifyUsers(app, [v.user.id, v.user.managerId], {
+      type: "VISIT_AUTO_CLOSED",
+      title: `Checked out automatically: ${name} at ${v.site.siteCode}`,
+      body: `The visit was still open after ${FE_VISIT_AUTO_CLOSE_HOURS} hours, so location sharing was stopped. Remember to press Check out when leaving the site.`,
+      link: `/ericsson/sites/${v.siteId}?tab=visits`,
+      siteId: v.siteId,
+      dedupeKey: `visit-auto-close:${v.id}`,
+    });
+    summary.visitsClosed++;
   }
 
   return summary;

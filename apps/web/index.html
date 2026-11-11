@@ -14,7 +14,9 @@
       })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Loaded without blocking: on a weak phone signal the app must not wait for the font (it falls back
+         to the system font, then switches). A blocking stylesheet here kept the app blank offline. -->
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
   </head>
   <body>
     <div id="root"></div>

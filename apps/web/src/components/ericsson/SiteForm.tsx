@@ -13,6 +13,8 @@ export interface SiteFormValues {
   ericssonRef: string;
   venueName: string;
   address: string;
+  /** "lat, lng" as copied from Google Maps; blank = not set. */
+  mapPosition: string;
   scope: EricssonScope;
   venueSqft: string;
   clientPmName: string;
@@ -26,7 +28,7 @@ export interface SiteFormValues {
 }
 
 export const EMPTY_SITE: SiteFormValues = {
-  siteCode: "", ericssonRef: "", venueName: "", address: "", scope: EricssonScope.IBS_ICI, venueSqft: "",
+  siteCode: "", ericssonRef: "", venueName: "", address: "", mapPosition: "", scope: EricssonScope.IBS_ICI, venueSqft: "",
   clientPmName: "", clientPmEmail: "", targetDate: "", notes: "", pmId: "", apmId: "", deliveryLeadId: "", coordinatorId: "",
 };
 
@@ -36,6 +38,18 @@ const TEAM: { key: "pmId" | "apmId" | "deliveryLeadId" | "coordinatorId"; label:
   { key: "deliveryLeadId", label: "Delivery lead", role: Role.DELIVERY_LEAD },
   { key: "coordinatorId", label: "Coordinator", role: Role.COORDINATOR },
 ];
+
+/** Parses "40.7128, -74.0060" (Google Maps' copy format). Null when blank; throws when unreadable. */
+export function parseMapPosition(text: string): { latitude: number; longitude: number } | null {
+  if (!text.trim()) return null;
+  const m = /^s*(-?d+(?:.d+)?)s*[,s]s*(-?d+(?:.d+)?)s*$/.exec(text);
+  const latitude = Number(m?.[1]);
+  const longitude = Number(m?.[2]);
+  if (!m || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+    throw new Error("Map position should look like 40.7128, -74.0060 (latitude, longitude)");
+  }
+  return { latitude, longitude };
+}
 
 /**
  * Converts form strings to the API body. `forUpdate` sends cleared optional fields as
@@ -48,6 +62,10 @@ export function toSiteBody(v: SiteFormValues, forUpdate: boolean): Record<string
     scope: v.scope,
     ericssonRef: opt(v.ericssonRef),
     address: opt(v.address),
+    ...(() => {
+      const p = parseMapPosition(v.mapPosition);
+      return p ?? (forUpdate ? { latitude: null, longitude: null } : {});
+    })(),
     venueSqft: v.venueSqft.trim() ? Number(v.venueSqft) : forUpdate ? null : undefined,
     clientPmName: opt(v.clientPmName),
     clientPmEmail: opt(v.clientPmEmail),
@@ -72,6 +90,7 @@ export function SiteForm({
   error: string | null;
 }) {
   const [v, setV] = useState<SiteFormValues>(initial);
+  const [formError, setFormError] = useState<string | null>(null);
   const { data: users } = useApi<UserOption[]>("/users");
   const set = <K extends keyof SiteFormValues>(k: K, value: SiteFormValues[K]) => setV((p) => ({ ...p, [k]: value }));
 
@@ -98,6 +117,9 @@ export function SiteForm({
           </Field>
           <Field label="Address">
             <Input value={v.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, city, state" />
+          </Field>
+          <Field label="Map position" hint="Right-click the venue in Google Maps and copy the numbers, e.g. 40.7128, -74.0060. Used to check that field engineers check in on site.">
+            <Input value={v.mapPosition} onChange={(e) => set("mapPosition", e.target.value)} placeholder="latitude, longitude" inputMode="decimal" />
           </Field>
           <Field label="Scope">
             <SelectField value={v.scope} onChange={(e) => set("scope", e.target.value as EricssonScope)}>
@@ -140,10 +162,19 @@ export function SiteForm({
         </FieldGrid>
       </section>
 
-      <FormError message={error} />
+      <FormError message={formError ?? error} />
 
       <div className="flex flex-wrap gap-2">
-        <AsyncButton onClick={() => onSubmit(v)}>{mode === "create" ? "Create site" : "Save changes"}</AsyncButton>
+        <AsyncButton onClick={() => {
+          try {
+            parseMapPosition(v.mapPosition);
+          } catch (e) {
+            setFormError((e as Error).message);
+            return Promise.reject(e);
+          }
+          setFormError(null);
+          return onSubmit(v);
+        }}>{mode === "create" ? "Create site" : "Save changes"}</AsyncButton>
         {onCancel && <Button variant="secondary" onClick={onCancel}>Cancel</Button>}
       </div>
     </div>

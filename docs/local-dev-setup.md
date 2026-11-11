@@ -88,6 +88,20 @@ any time, against one of their sites.
 - **Changes:** the FE can withdraw a claim that is waiting or rejected (e.g. to fix and resubmit); approved claims can't be withdrawn.
 - The type list lives in `packages/types/src/ericsson.ts` (`FE_EXPENSE_TYPES`), each mapped to a report category.
 
+### Site check-in and location (field engineers)
+FEs tap **Check in** on their phone when they arrive at a site and **Check out** when they leave. The first
+time, they agree to location sharing. While checked in, their location is sent every 10 minutes
+(`FE_LOCATION_INTERVAL_SECONDS`), in the **Android app** even with the screen off (see
+[android-app.md](android-app.md)); in a phone browser only while the page is open. Nothing is recorded
+outside a visit, and a visit left open 14 hours closes automatically.
+
+- The site's **Map position** (Overview → Edit; paste "lat, lng" from Google Maps) lets the app show how far
+  from the site each check-in was; more than 500 m is flagged.
+- Managers see it on the site's **Check-ins** tab: who is on site now, visits, time on site, and the
+  location trail (opens in Google Maps). Only Admin, Ops leader, PM, Associate PM and Delivery lead see locations.
+- To test without waiting 10 minutes: `FE_LOCATION_INTERVAL_SECONDS=30` in `apps/api/.env` (or before
+  `pnpm docker:test:up`). In a desktop browser, Chrome DevTools → Sensors can fake the location.
+
 ### FE work (each field engineer updates their own work)
 - The PM / delivery lead assigns work items on the site's **Crew work** tab: what needs doing, who (one crew member), an optional due date.
 - The crew member signs in and sees their items grouped by site. **Update** lets them set To do / In progress / Done / Blocked,
@@ -195,11 +209,13 @@ email must match. Turn `DEV_LOGIN` off anywhere other than your own machine.
 | FE expenses | 15 expense types, corporate / personal card, bill required; manager approves, then Finance sees it | `/field/expenses`, `/approvals/expenses`, `/api/field/expenses` |
 | Notifications | Bell, workflow events, Appendix C lists, escalation ladder, stand-up digest | `/api/notifications`, `/api/settings/*`, `POST /api/admin/jobs/run` |
 | Admin | Users & roles, RACI matrix (editable; C/I get notified) | `/api/users`, `/api/raci` |
+| FE check-in & location | Check in / out, consent, location every 10 min while checked in, distance from site, managers' Check-ins tab, auto-close after 14 h | `/api/field/visits/*`, `/api/field/sites/:id/check-in`, `/api/ericsson/sites/:id/visits` |
+| Android app | The web app in a native shell + background location while checked in | `apps/mobile`, [android-app.md](android-app.md) |
 
-Scheduled jobs (escalations, stand-up digest, bimonthly report reminder) run inside the API every
+Scheduled jobs (escalations, stand-up digest, bimonthly report reminder, closing forgotten site visits) run inside the API every
 15 minutes; see `JOBS_ENABLED` and `DIGEST_HOUR` in `.env.example`. Email needs the `SMTP_*` settings.
 
-Not built yet: the AT&T module (waiting on the SOP questions), hosting / CI, S3 document storage, PWA install for FEs.
+Not built yet: the AT&T module (waiting on the SOP questions), hosting / CI, S3 document storage, Android release signing + Play Store listing.
 
 ## Working with Claude Code
 `CLAUDE.md` at the repo root is the hand-off for AI agents: decisions, status, repo map and rules. Read it first.

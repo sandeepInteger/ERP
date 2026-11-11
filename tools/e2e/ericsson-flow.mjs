@@ -305,6 +305,49 @@ for (const [m, p] of [["GET", "/ericsson/sites"], ["GET", `/ericsson/sites/${cre
   r = await crew(m, p);
   ok(r.status === 403, `crew blocked from ${m} ${p} (${r.status})`);
 }
+// Site visits: check in / out with location, location trail while checked in.
+r = await pm("PATCH", `/ericsson/sites/${crewSite}`, { latitude: 40.7128 });
+ok(r.status === 400, "site map position needs both latitude and longitude");
+r = await pm("PATCH", `/ericsson/sites/${crewSite}`, { latitude: 40.7128, longitude: -74.006 });
+ok(r.status === 200, "PM sets the site's map position");
+r = await crew("GET", "/field/visits/current");
+ok(r.status === 200 && r.json.visit === null && r.json.consentAt === null && r.json.intervalSeconds >= 30, "FE has no open visit and hasn't agreed to location sharing yet");
+r = await crew("POST", `/field/sites/${crewSite}/check-in`, { lat: 40.7130, lng: -74.0061, accuracy: 12 });
+ok(r.status === 400 && r.json.details?.code === "CONSENT_REQUIRED", "check-in asks for consent the first time");
+r = await pm("POST", `/field/sites/${crewSite}/check-in`, { lat: 40.7130, lng: -74.0061, consent: true });
+ok(r.status === 403, `check-in is for field engineers (${r.status})`);
+r = await crew("POST", `/field/sites/${crewSite}/check-in`, { lat: 40.7130, lng: -74.0061, accuracy: 12, consent: true, source: "app" });
+ok(r.status === 201 && r.json.visit.distanceM < 50 && r.json.visit.far === false && r.json.visit.pointCount === 1, "FE checks in on site (distance from site recorded, first point saved)");
+const visitId = r.json.visit.id;
+r = await crew("POST", `/field/sites/${crewSite}/check-in`, { lat: 40.7130, lng: -74.0061 });
+ok(r.status === 409, "can't check in twice");
+const at = (msAgo) => new Date(Date.now() - msAgo).toISOString();
+r = await crew("POST", `/field/visits/${visitId}/points`, { points: [
+  { lat: 40.7131, lng: -74.0062, accuracy: 9, recordedAt: at(0) },
+  { lat: 40.7, lng: -74, recordedAt: at(3_600_000) },
+] });
+ok(r.status === 200 && r.json.saved === 1 && r.json.ignored === 1, "location points from during the visit are saved; one from before check-in is ignored");
+r = await crew2("POST", `/field/visits/${visitId}/points`, { points: [{ lat: 1, lng: 1, recordedAt: at(0) }] });
+ok(r.status === 401 || r.status === 403, `another FE can't add to the visit (${r.status})`);
+r = await crew("GET", `/ericsson/sites/${crewSite}/visits`);
+ok(r.status === 403, "FEs can't see the managers' location view");
+r = await fin("GET", `/ericsson/sites/${crewSite}/visits`);
+ok(r.status === 403, "Finance can't see FE locations");
+r = await dl("GET", `/ericsson/sites/${crewSite}/visits`);
+ok(r.status === 200 && r.json[0]?.id === visitId && r.json[0].checkOutAt === null && r.json[0].pointCount === 2, "delivery lead sees who is on site now, with the location trail count");
+r = await dl("GET", `/ericsson/visits/${visitId}/points`);
+ok(r.status === 200 && r.json.length === 2, "delivery lead sees the location trail");
+r = await crew("POST", `/field/visits/${visitId}/check-out`, { lat: 40.7129, lng: -74.006, accuracy: 10 });
+ok(r.status === 200 && r.json.visit.checkOutBy === "FE" && r.json.visit.pointCount === 3, "FE checks out (final location saved)");
+r = await crew("GET", "/field/visits/current");
+ok(r.json.visit === null && r.json.consentAt, "after check-out no visit is open, and consent is remembered");
+r = await crew("POST", `/field/sites/${crewSite}/check-in`, { lat: 41.5, lng: -74.006 });
+ok(r.status === 201 && r.json.visit.far === true, "checking in far from the site is flagged (no consent prompt the second time)");
+r = await dl("POST", `/ericsson/visits/${r.json.visit.id}/check-out`);
+ok(r.status === 200 && r.json.visit.checkOutBy === "MANAGER", "a manager can close a visit the FE forgot");
+r = await pm("GET", `/ericsson/sites/${crewSite}`);
+ok(r.json.events.some((e) => e.type === "CHECK_IN") && r.json.events.some((e) => e.type === "CHECK_OUT"), "check-ins and check-outs appear in the site activity");
+
 r = await admin("PATCH", `/users/${crewId}`, { isActive: false });
 
 r = await fin("PATCH", `/users/${id("vidhya@integertel.com")}`, { role: "VIEWER" });

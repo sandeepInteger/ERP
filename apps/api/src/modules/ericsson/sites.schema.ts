@@ -7,12 +7,21 @@ const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 const optText = (max: number) => z.string().trim().max(max).optional();
 const nullableText = (max: number) => z.string().trim().max(max).nullable().optional();
 const userId = z.string().min(1).nullable().optional();
+const LAT = z.number().min(-90).max(90);
+const LNG = z.number().min(-180).max(180);
+
+/** Map position: both or neither. */
+const bothCoords = (v: { latitude?: number | null | undefined; longitude?: number | null | undefined }) =>
+  (v.latitude === undefined) === (v.longitude === undefined) && (v.latitude === null) === (v.longitude === null);
+const COORDS_MSG = { message: "Give both latitude and longitude, or neither", path: ["latitude"] };
 
 export const CreateSiteSchema = z.object({
   siteCode: z.string().trim().min(1).max(40),
   ericssonRef: optText(80),
   venueName: z.string().trim().min(1).max(160),
   address: optText(300),
+  latitude: LAT.optional(),
+  longitude: LNG.optional(),
   scope: z.nativeEnum(EricssonScope),
   venueSqft: z.number().int().positive().max(100_000_000).optional(),
   clientPmName: optText(120),
@@ -23,12 +32,14 @@ export const CreateSiteSchema = z.object({
   apmId: userId,
   deliveryLeadId: userId,
   coordinatorId: userId,
-});
+}).refine(bothCoords, COORDS_MSG);
 
 export const UpdateSiteSchema = z.object({
   ericssonRef: nullableText(80),
   venueName: z.string().trim().min(1).max(160).optional(),
   address: nullableText(300),
+  latitude: LAT.nullable().optional(),
+  longitude: LNG.nullable().optional(),
   scope: z.nativeEnum(EricssonScope).optional(),
   venueSqft: z.number().int().positive().max(100_000_000).nullable().optional(),
   clientPmName: nullableText(120),
@@ -39,7 +50,7 @@ export const UpdateSiteSchema = z.object({
   apmId: userId,
   deliveryLeadId: userId,
   coordinatorId: userId,
-});
+}).refine(bothCoords, COORDS_MSG);
 
 export const ListSitesQuerySchema = z.object({
   step: z.nativeEnum(EricssonStep).optional(),

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
 import {
-  CR_OPEN_STATUSES, ERICSSON_EDIT_ROLES, ERICSSON_SCOPE_LABELS, EricssonScope, EricssonStep, VSS_OUTCOME_LABELS, type VssOutcome,
+  CR_OPEN_STATUSES, ERICSSON_EDIT_ROLES, FE_LOCATION_VIEW_ROLES, ERICSSON_SCOPE_LABELS, EricssonScope, EricssonStep, VSS_OUTCOME_LABELS, type VssOutcome,
 } from "@erp/types";
 import { Page, PageHeader } from "../../components/PageHeader.js";
 import { ActionPanel } from "../../components/ericsson/ActionPanel.js";
@@ -11,6 +11,7 @@ import { DailyLogSection } from "../../components/ericsson/DailyLogSection.js";
 import { DocumentsSection } from "../../components/ericsson/DocumentsSection.js";
 import { SiteCosts, canSeeCosts } from "../../components/ericsson/ExpensesPanel.js";
 import { SiteCrewCard } from "../../components/ericsson/SiteCrewCard.js";
+import { SiteVisitsSection } from "../../components/ericsson/SiteVisitsSection.js";
 import { CrewWorkSection } from "../../components/ericsson/CrewWorkSection.js";
 import { MaterialsSection } from "../../components/ericsson/MaterialsSection.js";
 import { SiteForm, toSiteBody, type SiteFormValues } from "../../components/ericsson/SiteForm.js";
@@ -30,7 +31,7 @@ import { api, errMsg } from "../../lib/api.js";
 import { date, dateTime, fullName, money } from "../../lib/format.js";
 import type { Person, SiteDetail } from "../../lib/ericsson.js";
 
-type Tab = "overview" | "documents" | "verification" | "materials" | "crs" | "work" | "log" | "costs" | "activity";
+type Tab = "overview" | "documents" | "verification" | "materials" | "crs" | "work" | "visits" | "log" | "costs" | "activity";
 
 function Facts({ rows }: { rows: [string, React.ReactNode][] }) {
   return (
@@ -50,6 +51,7 @@ const name = (p: Person | null) => (p ? fullName(p) : "Not assigned");
 function toForm(s: SiteDetail): SiteFormValues {
   return {
     siteCode: s.siteCode, ericssonRef: s.ericssonRef ?? "", venueName: s.venueName, address: s.address ?? "",
+    mapPosition: s.latitude != null && s.longitude != null ? `${s.latitude}, ${s.longitude}` : "",
     scope: s.scope as EricssonScope, venueSqft: s.venueSqft ? String(s.venueSqft) : "", clientPmName: s.clientPmName ?? "",
     clientPmEmail: s.clientPmEmail ?? "", targetDate: s.targetDate ? s.targetDate.slice(0, 10) : "", notes: s.notes ?? "",
     pmId: s.pm?.id ?? "", apmId: s.apm?.id ?? "", deliveryLeadId: s.deliveryLead?.id ?? "", coordinatorId: s.coordinator?.id ?? "",
@@ -127,6 +129,7 @@ export default function SiteDetailPage() {
           { value: "materials", label: "Materials", count: site.materials.length },
           { value: "crs", label: "Change requests", count: openCrs.length },
           { value: "work", label: "FE work", count: site.workItems.filter((w) => w.status !== "DONE").length },
+          ...(FE_LOCATION_VIEW_ROLES.has(me.role) ? [{ value: "visits" as const, label: "Check-ins" }] : []),
           { value: "log", label: "Daily log", count: site.dailyLogs.length },
           ...(canSeeCosts(me.role) ? [{ value: "costs" as const, label: "Costs" }] : []),
           { value: "activity", label: "Activity" },
@@ -152,6 +155,9 @@ export default function SiteDetailPage() {
                   <Facts rows={[
                     ["Ericsson ref", site.ericssonRef ?? "—"],
                     ["Address", site.address ?? "—"],
+                    ["Map position", site.latitude != null && site.longitude != null
+                      ? <a href={`https://www.google.com/maps?q=${site.latitude},${site.longitude}`} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">{site.latitude}, {site.longitude}</a>
+                      : "—"],
                     ["Venue size", site.venueSqft ? `${site.venueSqft.toLocaleString("en-US")} sq ft` : "—"],
                     ["Ericsson PM", site.clientPmName ? `${site.clientPmName}${site.clientPmEmail ? ` · ${site.clientPmEmail}` : ""}` : "—"],
                     ["PM", name(site.pm)],
@@ -195,6 +201,9 @@ export default function SiteDetailPage() {
       )}
       {tab === "work" && (
         <CrewWorkSection siteId={site.id} items={site.workItems} crew={site.crew.map((c) => c.user)} canEdit={canEdit} closed={site.step === EricssonStep.CLOSED} onChanged={reload} />
+      )}
+      {tab === "visits" && FE_LOCATION_VIEW_ROLES.has(me.role) && (
+        <SiteVisitsSection siteId={site.id} hasMapPosition={site.latitude != null && site.longitude != null} />
       )}
       {tab === "log" && <DailyLogSection siteId={site.id} logs={site.dailyLogs} canEdit={canEdit} onChanged={reload} />}
       {tab === "costs" && canSeeCosts(me.role) && <SiteCosts siteId={site.id} closed={site.step === EricssonStep.CLOSED} />}

@@ -25,8 +25,9 @@ Architecture, folder layout and conventions mirror the HRMS project at `C:\Integ
 ## 2. Status (as of 2026-11-11)
 **Git:** `main` = commit `6c4cf7c` "Foundation and Ericsson IBS core" (pushed; remote moved to
 `https://github.com/Integer-Telecom-Inc/Integer-ERP-System.git`, local `origin` still points at the old `IntergerDevs` URL which redirects).
-Features 3.6–3.13 + hand-off hooks are committed as `2e6bfbb` on branch **`feature/ericsson-fe-and-ops`** (pushed,
-not yet merged to `main`; PR: https://github.com/Integer-Telecom-Inc/Integer-ERP-System/pull/new/feature/ericsson-fe-and-ops).
+Features 3.6–3.13, hand-off hooks, light/dark switch and responsive layouts are on branch **`feature/ericsson-fe-and-ops`**
+(pushed up to `8052262`, not yet merged to `main`; PR: https://github.com/Integer-Telecom-Inc/Integer-ERP-System/pull/new/feature/ericsson-fe-and-ops).
+**3.14–3.15 (FE check-in / location + Android app) are UNCOMMITTED.**
 Ask before committing; push to a review branch, not `main`.
 
 **Built (Ericsson IBS module):**
@@ -45,12 +46,14 @@ Ask before committing; push to a review branch, not `main`.
 | 3.11 | RACI matrix (editable by admin; C/I notified) | `/admin/raci` |
 | 3.12 | FE email-code sign-in; FE assigned to sites; FE work items they update themselves | login page, site Overview "Field engineers", site "FE work" tab, `/field/work/:id` |
 | 3.13 | FE expense claims (15 types, corporate/personal card, bill required) → manager approval → Finance; reimbursement | `/field/expenses`, `/approvals/expenses` |
+| 3.14 | FE site check-in / check-out with location (one-time consent), location every 10 min while checked in, distance from site's map position (>500 m flagged), offline queue, auto-close after 14 h; managers' Check-ins tab with trail → Google Maps | FE home `/field`, site "Check-ins" tab, site form "Map position" |
+| 3.15 | **Android app** (`apps/mobile`, Capacitor 6): loads the web app from `ERP_APP_URL` + own native `SiteTracker` plugin (foreground service, background location). Debug APK built & tested on emulator; not released | `docs/android-app.md` |
 
 **Not built yet (backlog, roughly in priority order):**
 1. AT&T module (separate workflow) — blocked on SOP questions (step numbering conflicts, missing Appendix A).
 2. Production hosting (HRMS uses AWS ECS/RDS/S3), CI (typecheck, tests, e2e on push), backups, error logging.
 3. S3 document storage (today: local disk via `apps/api/src/lib/storage.ts` — only that file must change).
-4. PWA "add to home screen" for FEs.
+4. Android release: signing key, `ERP_APP_URL` = production https URL, Play Store listing (or Intune/MDM). iOS app not started (user asked Android only).
 
 **Open business questions** (put answers into code/seed when received):
 - Escalation chain: SOP lists Sales leader as both L2 and L3; current default PM → Ops leader → Sales leader (3/5/8 days).
@@ -58,20 +61,22 @@ Ask before committing; push to a review branch, not `main`.
 - Margin definition (vs contract value; sites with no costs show 100%).
 - Real managers for FEs (sample FEs report to Ashish Vashisht); emails for Narsimha Rao / Aniket Gupta (vendor invoicing list).
 - Seed team emails from the SOP may not match real Microsoft logins (e.g. `siddhant@`).
+- FE location tracking: HR/legal sign-off on employee-monitoring notice (some US states require written notice); who besides PM/DL/Ops should see locations; whether check-in time should feed labor hours.
 
 ## 3. Repo map
 ```
 apps/api/                 Fastify API (@erp/api)
-  prisma/schema.prisma    all models; migrations in prisma/migrations (6 so far, never edit an applied one)
+  prisma/schema.prisma    all models; migrations in prisma/migrations (7 so far, never edit an applied one)
   src/app.ts              registers plugins + every route + scheduled jobs
   src/plugins/auth.ts     app.authenticate / requireRole; FIELD_CREW deny-by-default check
   src/lib/                http (httpError, defined, queryBool, day), storage (local files), email (SMTP),
                           notify (bell + email + lists), spreadsheet (Excel), crew-access (FE route allowlist)
-  src/jobs/ericsson-jobs  escalations, stand-up digest, bimonthly report reminder (every 15 min, idempotent)
+  src/jobs/ericsson-jobs  escalations, stand-up digest, bimonthly report reminder, auto-close visits open >14 h (every 15 min, idempotent)
   src/modules/auth/       auth (refresh/logout/me/dev-login), sso (Microsoft), otp (FE email codes)
   src/modules/ericsson/   sites, workflow gates, documents, verification, materials, change-requests,
                           daily-logs, expenses (cost lines), claims (FE expenses + approvals), reports,
-                          my-work, field (FE-safe site data + crew assignment), work-items, notify hooks
+                          my-work, field (FE-safe site data + crew assignment), work-items, notify hooks,
+                          visits (FE check-in/out, location points, managers' view) + visits.logic (distance, accept points, auto-close)
   src/modules/{users,raci,notifications,settings,health}
   src/seed.ts             users + RACI + distribution lists + escalation (real config)
   src/seed-demo.ts        SAMPLE data: 10 sites at every step, test users, FE work, claims (SEED_DEMO=true)
@@ -81,12 +86,19 @@ apps/web/                 React SPA (@erp/web)
   src/components/         AppShell, SidebarNav (role-filtered menu), TopHeaderBar (+ ThemeToggle, NotificationBell), EmailCodeLogin, SummaryStatCard, PageHeader
   src/components/ericsson/ site-page sections and forms
   src/pages/              Dashboard, Login, ExpenseApprovals, admin/*, ericsson/*, field/* (phone-first)
-  src/lib/                api (axios + token refresh), ericsson (response types, tones), format, download (downloadFile/viewFile), theme (light/dark)
+  src/lib/                api (axios + token refresh), ericsson (response types, tones), format, download (downloadFile/viewFile), theme (light/dark),
+                          tracker (location: native SiteTracker in the app / browser timer, offline queue in localStorage)
+  src/context/VisitContext FE's open visit, checkIn/checkOut, keeps tracking running (mounted for FEs in AppShell)
+  src/components/field/SiteCheckIn  FE check-in card (consent, check in, checked-in, check out)
+apps/mobile/              Android app (@erp/mobile, Capacitor 6). capacitor.config.ts (ERP_APP_URL, baked in at `cap sync`),
+                          www/offline.html, android/ (generated) + android/app/src/main/java/com/integertel/erp/tracker/*
+                          (SiteTrackerPlugin, SiteTrackerService foreground service, PointStore, TrackerState)
 packages/types/src/       roles.ts (Role, labels, role sets) · ericsson.ts (steps, actions+roles, statuses, labels, FE expense types, lists)
 .claude/settings.json + .claude/hooks/handoff-check.mjs   hooks that keep this file current (see §10)
-tools/e2e/ericsson-flow.mjs   end-to-end API check (102 checks); needs DEV_LOGIN + seeded users
+tools/e2e/ericsson-flow.mjs   end-to-end API check (120 checks); needs DEV_LOGIN + seeded users
 docker-compose.test.yml   Postgres 16 + migrate/seed + API + web(nginx) on :8080, e2e profile
-docs/local-dev-setup.md   full setup, users & sample data, FE sign-in, FE work, FE expenses, Docker
+docs/local-dev-setup.md   full setup, users & sample data, FE sign-in, check-in, FE work, FE expenses, Docker
+docs/android-app.md       Android app: how check-in/location works, build, emulator, real phone, release, known limits
 ```
 
 ## 4. Domain model cheat-sheet
@@ -101,18 +113,21 @@ Actions run in a transaction with `SELECT … FOR UPDATE`, re-check gates, write
 
 **Expenses** live in one table `ericsson_expenses`: staff cost lines are `status=APPROVED` immediately; FE claims start `SUBMITTED` with `claimType`, `paymentMethod`, `receipt*`, `approverId`. Every money view filters `status: "APPROVED"`. Approver = FE's `User.managerId` → site delivery lead → site PM (`claims.logic.ts`).
 
+**Site visits (FE check-in):** tables `ericsson_site_visits` (check-in/out position, distance, `checkOutBy` FE/MANAGER/AUTO, `source` app/browser) and `ericsson_location_points` (unique visitId+recordedAt). One open visit per FE (pg advisory lock). Consent stored on `User.locationConsentAt`. Points accepted only inside the visit window (late uploads OK). Interval `FE_LOCATION_INTERVAL_SECONDS` (default 600, min 30). Only `FE_LOCATION_VIEW_ROLES` (Admin, Ops, PM, APM, DL) see locations. Site `latitude`/`longitude` optional (both or neither). Activity trail logs CHECK_IN/CHECK_OUT without coordinates.
+
 **Notifications:** `lib/notify.ts` (`notifyUsers`, `notifyList`) — bell rows + optional email; `dedupeKey` makes scheduled jobs idempotent. Workflow hooks in `ericsson.notify.ts`.
 
 ## 5. Commands
 - Install: `pnpm install` · build types: `pnpm --filter @erp/types build` · Prisma client: `pnpm --filter @erp/api exec prisma generate`
 - Typecheck: `pnpm --filter @erp/api exec tsc --noEmit` and `pnpm --filter @erp/web exec tsc --noEmit`
-- Unit tests: `pnpm --filter @erp/api run test` (65 tests) · Lint: `pnpm exec eslint apps/api/src apps/web/src`
+- Unit tests: `pnpm --filter @erp/api run test` (74 tests) · Lint: `pnpm exec eslint apps/api/src apps/web/src`
 - New migration: stop the dev servers first (Windows locks the Prisma engine), then `pnpm --filter @erp/api exec prisma migrate dev --name <name>`
 - Seed: `pnpm --filter @erp/api run db:seed`; sample data `SEED_DEMO=true …`; reset samples `SEED_RESET_DEMO=true SEED_DEMO=true …`
 - Dev: `pnpm dev` (API :3000, web :5173 proxies /api). Needs `apps/api/.env` (see `.env.example`).
 - E2E: `BASE_URL=http://localhost:3000/api pnpm test:e2e` (creates `E2E-*` sites; the sample reset removes them)
 - Docker test stack: `pnpm docker:test:up` → http://localhost:8080 · `pnpm docker:test:e2e` · `pnpm docker:test:down` (wipes data). Docker Desktop must be running (it sometimes stalls on "Starting": restart it / `wsl --shutdown`).
 - Git Bash on Windows rewrites `/paths` in arguments: prefix scripts with `MSYS_NO_PATHCONV=1`.
+- Android app: `cd apps/mobile && ERP_APP_URL=http://localhost:8080 pnpm exec cap sync android && cd android && JAVA_HOME=<full JDK 17> ./gradlew.bat assembleDebug`. Needs a **full** JDK 17 (IntelliJ's JBR lacks jlink; Temurin 17 is in `~/.jdks/jdk-17.0.21+9`) and `android/local.properties` with `sdk.dir`. Emulator `Pixel_3_API_28` (Play image) + `adb reverse tcp:8080 tcp:8080`; test against Docker, not `pnpm dev` (Vite is IPv6-only and too slow in the WebView). Short interval for tests: `FE_LOCATION_INTERVAL_SECONDS=30 pnpm docker:test:up`. Details: `docs/android-app.md`.
 
 **Local test logins** (dev sign-in on login page; FE via email code — code is shown on screen when no SMTP and `DEV_LOGIN=true`):
 Admin `niranjan.tamhane@integertel.com` · PM `vidhya@integertel.com` · APM `jaspreet@integertel.com` · Delivery lead `ashish@integertel.com` · Coordinator `hitesh.chaudhary@integertel.com` · Finance `siddhant@integertel.com` · Sales `chris.lembo@integertel.com` · Ops `ops.leader@example.test` · Viewer `viewer@example.test` · FEs `crew.tech1@example.test`, `crew.tech2@example.test` (manager: Ashish).
@@ -146,6 +161,7 @@ Admin `niranjan.tamhane@integertel.com` · PM `vidhya@integertel.com` · APM `ja
 - Light/dark: colours come only from tokens in `styles/tokens.css`; dark values live under `:root[data-theme="dark"]`.
   `index.html` sets `data-theme` before first paint (saved choice in localStorage `erp-theme`, else OS); the top-bar
   ThemeToggle switches it. Never hard-code colours, or they won't switch.
+- Never add a render-blocking external stylesheet/script to `index.html` (the Google Fonts link uses `media="print" onload`): with no signal it kept the Android app blank.
 - Field (`/field/*`) screens are phone-first: max-w-xl column, ≥44px targets, `capture="environment"` for photos; copy files out of a file input **before** clearing it.
 - `exactOptionalPropertyTypes`: optional props that receive possibly-undefined values must be typed `?: T | undefined`.
 - Check `src/components/ui/` and `src/components/` before writing anything new.

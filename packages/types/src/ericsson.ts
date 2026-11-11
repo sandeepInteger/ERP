@@ -344,5 +344,15 @@ export const ERICSSON_FINANCE_VIEW_ROLES = new Set<string>([
   Role.ADMIN, Role.SALES_LEADER, Role.OPS_LEADER, Role.PROJECT_MANAGER, Role.ASSOCIATE_PM, Role.FINANCE,
 ]);
 
+/** Roles that see field engineers' check-ins and location trail (the people who manage FEs on site). */
+export const FE_LOCATION_VIEW_ROLES = new Set<string>([Role.ADMIN, Role.OPS_LEADER, PM, APM, DL]);
+
+/** FE site visits: location is sent this often while checked in (the API can override it with
+ *  FE_LOCATION_INTERVAL_SECONDS), a visit left open this long is closed automatically, and a
+ *  check-in further than this from the site's map position is flagged. */
+export const FE_LOCATION_INTERVAL_SECONDS = 600;
+export const FE_VISIT_AUTO_CLOSE_HOURS = 14;
+export const FE_CHECKIN_FAR_METRES = 500;
+
 /** Roles that can approve or reject CRs at PM review and record Ericsson's decision. */
 export const ERICSSON_CR_DECIDE_ROLES = new Set<string>([Role.ADMIN, Role.OPS_LEADER, PM]);

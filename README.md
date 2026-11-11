@@ -4,7 +4,7 @@ Project tracker for Integer Telecom Services client work. First module: **Ericss
 (sites through SOP steps 1–9, change requests, documents, daily logs).
 
 Stack: Fastify + Prisma + PostgreSQL (`apps/api`), React + Vite + Tailwind (`apps/web`),
-shared types in `packages/types`. Same structure as the HRMS project.
+Android app for field engineers (`apps/mobile`, Capacitor), shared types in `packages/types`. Same structure as the HRMS project.
 
 ---
 
@@ -122,5 +122,6 @@ developer sign-in is all you need for testing. Setup steps are in
 ## More
 
 - [docs/local-dev-setup.md](docs/local-dev-setup.md) — full setup, Microsoft sign-in, what is built so far
+- [docs/android-app.md](docs/android-app.md) — the field engineers' Android app: check-in, background location, build & install
 - [CLAUDE.md](CLAUDE.md) — code conventions (module pattern, UI rules)
 - `docs/*.pdf` — the client SOPs the workflows are built from

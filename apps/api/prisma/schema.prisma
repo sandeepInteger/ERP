@@ -119,21 +119,23 @@ enum ExpenseCategory {
 // user first (email + role), then their first Microsoft sign-in links the account.
 
 model User {
-  id               String    @id @default(cuid())
-  email            String    @unique
-  firstName        String
-  lastName         String
-  designation      String?
-  role             Role
-  isActive         Boolean   @default(true)
-  azureOid         String?   @unique
+  id                String    @id @default(cuid())
+  email             String    @unique
+  firstName         String
+  lastName          String
+  designation       String?
+  role              Role
+  isActive          Boolean   @default(true)
+  azureOid          String?   @unique
   /// Line manager: approves this person's expense claims.
-  managerId        String?
-  tokenVersion     Int       @default(0)
-  refreshTokenHash String?
-  lastLoginAt      DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  managerId         String?
+  tokenVersion      Int       @default(0)
+  refreshTokenHash  String?
+  lastLoginAt       DateTime?
+  /// When this field engineer agreed to location sharing between check-in and check-out.
+  locationConsentAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   sessions  UserSession[]
   auditLogs AuditLog[]
@@ -162,6 +164,7 @@ model User {
   ericssonWorkAssigned        EricssonWorkItem[]      @relation("WorkAssignee")
   ericssonWorkCreated         EricssonWorkItem[]      @relation("WorkCreatedBy")
   ericssonWorkUpdates         EricssonWorkUpdate[]
+  ericssonSiteVisits          EricssonSiteVisit[]
 
   @@map("users")
 }
@@ -302,6 +305,9 @@ model EricssonSite {
   ericssonRef   String?
   venueName     String
   address       String?
+  /// Map position of the venue, used to check how far a field engineer checks in from the site.
+  latitude      Float?
+  longitude     Float?
   scope         EricssonScope
   venueSqft     Int?
   clientPmName  String?
@@ -365,6 +371,7 @@ model EricssonSite {
   expenses       EricssonExpense[]
   crew           EricssonSiteCrew[]
   workItems      EricssonWorkItem[]
+  visits         EricssonSiteVisit[]
 
   @@index([step])
   @@map("ericsson_sites")
@@ -621,4 +628,59 @@ model EricssonSiteEvent {
 
   @@index([siteId, createdAt])
   @@map("ericsson_site_events")
+}
+
+// ---------------------------------------------------------------------------
+// Field engineer site visits: check-in / check-out with location, and the location
+// points the phone sends while checked in (every few minutes). Nothing is recorded
+// outside a visit.
+// ---------------------------------------------------------------------------
+
+model EricssonSiteVisit {
+  id     String @id @default(cuid())
+  siteId String
+  userId String
+
+  checkInAt        DateTime @default(now())
+  checkInLat       Float
+  checkInLng       Float
+  checkInAccuracy  Float?
+  /// Metres from the site's map position at check-in (null when the site has no position).
+  checkInDistanceM Float?
+
+  checkOutAt       DateTime?
+  checkOutLat      Float?
+  checkOutLng      Float?
+  checkOutAccuracy Float?
+  /// "FE" (pressed Check out), "MANAGER" (closed by a manager) or "AUTO" (left open too long).
+  checkOutBy       String?
+
+  /// "app" (Android app, tracks in the background) or "browser" (only while the page is open).
+  source    String   @default("browser")
+  createdAt DateTime @default(now())
+
+  site   EricssonSite            @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  points EricssonLocationPoint[]
+
+  @@index([userId, checkOutAt])
+  @@index([siteId, checkInAt])
+  @@map("ericsson_site_visits")
+}
+
+model EricssonLocationPoint {
+  id         String   @id @default(cuid())
+  visitId    String
+  lat        Float
+  lng        Float
+  accuracy   Float?
+  /// When the phone took the reading (it may upload later if it was offline).
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  visit EricssonSiteVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@unique([visitId, recordedAt])
+  @@index([visitId, recordedAt])
+  @@map("ericsson_location_points")
 }

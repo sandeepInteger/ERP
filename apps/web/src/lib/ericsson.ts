@@ -51,7 +51,7 @@ export interface SiteEvent { id: string; type: string; message: string; createdA
 export interface AvailableAction { action: EricssonAction; label: string; allowed: boolean; blockers: string[] }
 
 export interface SiteDetail {
-  id: string; siteCode: string; ericssonRef: string | null; venueName: string; address: string | null; scope: string;
+  id: string; siteCode: string; ericssonRef: string | null; venueName: string; address: string | null; latitude: number | null; longitude: number | null; scope: string;
   venueSqft: number | null; clientPmName: string | null; clientPmEmail: string | null; targetDate: string | null; notes: string | null;
   step: EricssonStep; stepChangedAt: string; daysInStep: number;
   pm: Person | null; apm: Person | null; deliveryLead: Person | null; coordinator: Person | null;

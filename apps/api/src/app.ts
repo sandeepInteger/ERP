@@ -16,6 +16,7 @@ import { authRoute } from "./modules/auth/auth.route.js";
 import { ssoRoute } from "./modules/auth/sso.route.js";
 import { otpRoute } from "./modules/auth/otp.route.js";
 import { fieldRoute } from "./modules/ericsson/field.route.js";
+import { visitsRoute } from "./modules/ericsson/visits.route.js";
 import { ericssonWorkItemsRoute } from "./modules/ericsson/work-items.route.js";
 import { ericssonClaimsRoute } from "./modules/ericsson/claims.route.js";
 import { usersRoute } from "./modules/users/users.route.js";
@@ -99,6 +100,7 @@ export async function buildApp() {
   await app.register(ssoRoute);
   await app.register(otpRoute);
   await app.register(fieldRoute);
+  await app.register(visitsRoute);
   await app.register(ericssonWorkItemsRoute);
   await app.register(ericssonClaimsRoute);
   await app.register(usersRoute);

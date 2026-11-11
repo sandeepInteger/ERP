@@ -115,6 +115,7 @@ export async function createSite(app: FastifyInstance, body: CreateSiteBody, act
         data: {
           ...defined({
             ericssonRef: body.ericssonRef, address: body.address, venueSqft: body.venueSqft,
+            latitude: body.latitude, longitude: body.longitude,
             clientPmName: body.clientPmName, clientPmEmail: body.clientPmEmail, notes: body.notes,
             pmId: body.pmId, apmId: body.apmId, deliveryLeadId: body.deliveryLeadId, coordinatorId: body.coordinatorId,
           }),

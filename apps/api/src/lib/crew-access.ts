@@ -20,6 +20,11 @@ export const CREW_ALLOWED_ROUTES = new Set<string>([
   "GET /api/expenses/:id/receipt",
   "POST /api/ericsson/sites/:id/documents",
   "POST /api/ericsson/sites/:id/change-requests",
+  // Site visits: check in / out and the location trail of their own open visit (checked in the route).
+  "GET /api/field/visits/current",
+  "POST /api/field/sites/:id/check-in",
+  "POST /api/field/visits/:id/points",
+  "POST /api/field/visits/:id/check-out",
 ]);
 
 export function crewMayCall(method: string, routePattern: string | undefined): boolean {

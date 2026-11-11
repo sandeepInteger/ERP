@@ -60,6 +60,8 @@ services:
       CORS_ORIGINS: http://localhost:8080
       UPLOAD_DIR: /app/uploads
       AZURE_REDIRECT_URI: ${AZURE_REDIRECT_URI:-http://localhost:8080/api/auth/sso/azure/callback}
+      # How often FE phones send location while checked in (seconds; default 600). Lower it to test.
+      FE_LOCATION_INTERVAL_SECONDS: ${FE_LOCATION_INTERVAL_SECONDS:-600}
     volumes:
       - uploads:/app/uploads
     depends_on:

@@ -5,6 +5,7 @@ import { WORK_STATUS_LABELS, WorkItemStatus } from "@erp/types";
 import { Badge } from "../../components/ui/badge.js";
 import { Button } from "../../components/ui/button.js";
 import { Card } from "../../components/ui/card.js";
+import { SiteCheckIn } from "../../components/field/SiteCheckIn.js";
 import { FormError } from "../../components/ui/field.js";
 import { useApi } from "../../hooks/useApi.js";
 import { useMe } from "../../context/MeContext.js";
@@ -45,6 +46,8 @@ export function CrewToday() {
           <span className="rounded-full bg-white/20 px-3 py-1">{hoursToday} hrs logged today</span>
         </div>
       </header>
+
+      <SiteCheckIn />
 
       <FormError message={error} />
       {data && items.length === 0 && (
