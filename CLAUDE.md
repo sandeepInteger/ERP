@@ -27,7 +27,9 @@ Architecture, folder layout and conventions mirror the HRMS project at `C:\Integ
 `https://github.com/Integer-Telecom-Inc/Integer-ERP-System.git`, local `origin` still points at the old `IntergerDevs` URL which redirects).
 Features 3.6–3.13, hand-off hooks, light/dark switch and responsive layouts are on branch **`feature/ericsson-fe-and-ops`**
 (pushed up to `8052262`, not yet merged to `main`; PR: https://github.com/Integer-Telecom-Inc/Integer-ERP-System/pull/new/feature/ericsson-fe-and-ops).
-**3.14–3.15 (FE check-in / location + Android app) are UNCOMMITTED.**
+**3.14–3.15 (FE check-in / location + Android app)** are on branch **`feature/fe-checkin-android`** (created from
+`feature/ericsson-fe-and-ops`, so it contains everything above; pushed up to `890c7b8`; PR:
+https://github.com/Integer-Telecom-Inc/Integer-ERP-System/pull/new/feature/fe-checkin-android). Merge order: `feature/ericsson-fe-and-ops` → `main`, then this one.
 Ask before committing; push to a review branch, not `main`.
 
 **Built (Ericsson IBS module):**
