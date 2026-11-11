@@ -13,7 +13,7 @@ shared types in `packages/types`. Same structure as the HRMS project.
 Use this to **try the app or test it**. You only need **Docker Desktop**, running.
 
 ```bash
-git clone <repo-url> integer-erp
+git clone https://github.com/Integer-Telecom-Inc/Integer-ERP-System.git integer-erp
 cd integer-erp
 docker compose -f docker-compose.test.yml up -d --build
 ```
@@ -52,7 +52,7 @@ Use this when you will **change the code**: it reloads instantly on save.
 and PostgreSQL 15+ (or just the database from Option A — see the tip below).
 
 ```bash
-git clone <repo-url> integer-erp
+git clone https://github.com/Integer-Telecom-Inc/Integer-ERP-System.git integer-erp
 cd integer-erp
 pnpm install
 pnpm --filter @erp/types build

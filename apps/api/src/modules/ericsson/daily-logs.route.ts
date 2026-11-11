@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { day } from "../../lib/http.js";
-import { assertCanEdit, assertSite, logEvent } from "./ericsson.shared.js";
+import { assertCanWorkOnSite, assertSite, logEvent } from "./ericsson.shared.js";
 
 // SOP step 5: daily progress from the site (summary, crew, hours, blockers).
 
@@ -21,9 +21,9 @@ export async function ericssonDailyLogsRoute(app: FastifyInstance) {
   const guard = { preHandler: app.authenticate };
 
   app.post("/api/ericsson/sites/:id/daily-logs", guard, async (req, reply) => {
-    assertCanEdit(req.user.role);
     const { id } = IdParams.parse(req.params);
     await assertSite(app, id);
+    await assertCanWorkOnSite(app, req.user, id);
     const b = CreateDailyLogSchema.parse(req.body);
     const row = await app.db.ericssonDailyLog.create({
       data: {

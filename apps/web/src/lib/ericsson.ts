@@ -1,5 +1,5 @@
 import {
-  ChangeRequestStatus, ERICSSON_STEPS, EricssonStep, MaterialStatus, type EricssonAction,
+  ChangeRequestStatus, ERICSSON_STEPS, EricssonStep, MaterialStatus, WorkItemStatus, type EricssonAction,
 } from "@erp/types";
 import type { BadgeTone } from "../components/ui/badge.js";
 
@@ -62,6 +62,8 @@ export interface SiteDetail {
   srmInvoiceNumber: string | null; invoiceUploadedAt: string | null; invoiceApprovedAt: string | null; closedAt: string | null;
   documents: SiteDocument[]; discrepancies: Discrepancy[]; clientQueries: ClientQuery[]; materials: MaterialLine[];
   changeRequests: ChangeRequest[]; dailyLogs: DailyLog[]; events: SiteEvent[]; actions: AvailableAction[];
+  crew: { user: Person }[];
+  workItems: WorkItem[];
 }
 
 export interface Summary {
@@ -115,6 +117,22 @@ export function crTone(s: ChangeRequestStatus): BadgeTone {
     case ChangeRequestStatus.REJECTED: return "error";
     case ChangeRequestStatus.WITHDRAWN: return "neutral";
   }
+}
+
+export function workTone(s: WorkItemStatus): BadgeTone {
+  switch (s) {
+    case WorkItemStatus.TODO: return "neutral";
+    case WorkItemStatus.IN_PROGRESS: return "info";
+    case WorkItemStatus.DONE: return "success";
+    case WorkItemStatus.BLOCKED: return "error";
+    case WorkItemStatus.CANCELLED: return "outline";
+  }
+}
+
+export interface WorkItem {
+  id: string; title: string; description: string | null; status: WorkItemStatus; dueDate: string | null;
+  completedAt: string | null; assigneeId: string; assignee: Person;
+  updates: { id: string; status: WorkItemStatus; hours: string; note: string | null; photoCount: number; workDate: string; createdAt: string; user: Person }[];
 }
 
 export function crLabel(n: number): string {

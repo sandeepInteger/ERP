@@ -12,6 +12,8 @@ function site(over: Partial<SiteSnapshot> = {}): SiteSnapshot {
     rfxAcceptedAt: null,
     materialStatuses: [],
     dailyLogCount: 0,
+    workUpdateCount: 0,
+    openWorkItems: 0,
     vssOutcome: null,
     ae202SubmittedAt: null,
     ae202StampedAt: null,
@@ -54,10 +56,16 @@ describe("gateFailures", () => {
     expect(gateFailures(EricssonAction.START_EXECUTION, { ...s, materialStatuses: [MaterialStatus.IN_STOCK] })).toEqual([]);
   });
 
-  it("step 5 needs a daily log before SOW completion", () => {
+  it("step 5 needs a daily log or crew update before SOW completion", () => {
     const s = site({ step: EricssonStep.EXECUTION });
-    expect(gateFailures(EricssonAction.COMPLETE_SOW, s)).toEqual(["Add at least one daily log."]);
+    expect(gateFailures(EricssonAction.COMPLETE_SOW, s)).toEqual(["Add at least one daily log or crew work update."]);
     expect(gateFailures(EricssonAction.COMPLETE_SOW, { ...s, dailyLogCount: 1 })).toEqual([]);
+    expect(gateFailures(EricssonAction.COMPLETE_SOW, { ...s, workUpdateCount: 3 })).toEqual([]);
+  });
+
+  it("step 5 needs every crew work item done", () => {
+    const s = site({ step: EricssonStep.EXECUTION, workUpdateCount: 2, openWorkItems: 2 });
+    expect(gateFailures(EricssonAction.COMPLETE_SOW, s)).toEqual(["2 crew work items aren't done yet."]);
   });
 
   it("step 7 needs a passing VSS and the AE202 file before submission", () => {

@@ -10,6 +10,11 @@ export enum Role {
   COORDINATOR = "COORDINATOR",
   FINANCE = "FINANCE",
   VIEWER = "VIEWER",
+  /**
+   * Field engineer (FE): works on site. Signs in with an emailed one-time code and sees only the
+   * field screens of their sites (assigned work, expenses). Internal key kept as FIELD_CREW.
+   */
+  FIELD_CREW = "FIELD_CREW",
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -22,7 +27,11 @@ export const ROLE_LABELS: Record<Role, string> = {
   [Role.COORDINATOR]: "Project coordinator",
   [Role.FINANCE]: "Finance",
   [Role.VIEWER]: "Viewer",
+  [Role.FIELD_CREW]: "Field engineer (FE)",
 };
+
+/** Roles that sign in with an emailed one-time code instead of Microsoft. */
+export const EMAIL_CODE_ROLES = new Set<string>([Role.FIELD_CREW]);
 
 export const ALL_ROLES = Object.values(Role);
 

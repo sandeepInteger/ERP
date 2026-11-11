@@ -9,6 +9,9 @@ import { ActionPanel } from "../../components/ericsson/ActionPanel.js";
 import { ChangeRequestsSection } from "../../components/ericsson/ChangeRequestsSection.js";
 import { DailyLogSection } from "../../components/ericsson/DailyLogSection.js";
 import { DocumentsSection } from "../../components/ericsson/DocumentsSection.js";
+import { SiteCosts, canSeeCosts } from "../../components/ericsson/ExpensesPanel.js";
+import { SiteCrewCard } from "../../components/ericsson/SiteCrewCard.js";
+import { CrewWorkSection } from "../../components/ericsson/CrewWorkSection.js";
 import { MaterialsSection } from "../../components/ericsson/MaterialsSection.js";
 import { SiteForm, toSiteBody, type SiteFormValues } from "../../components/ericsson/SiteForm.js";
 import { StepBadge } from "../../components/ericsson/StepBadge.js";
@@ -27,7 +30,7 @@ import { api, errMsg } from "../../lib/api.js";
 import { date, dateTime, fullName, money } from "../../lib/format.js";
 import type { Person, SiteDetail } from "../../lib/ericsson.js";
 
-type Tab = "overview" | "documents" | "verification" | "materials" | "crs" | "log" | "activity";
+type Tab = "overview" | "documents" | "verification" | "materials" | "crs" | "work" | "log" | "costs" | "activity";
 
 function Facts({ rows }: { rows: [string, React.ReactNode][] }) {
   return (
@@ -123,7 +126,9 @@ export default function SiteDetailPage() {
           { value: "verification", label: "Verification", count: openDisc },
           { value: "materials", label: "Materials", count: site.materials.length },
           { value: "crs", label: "Change requests", count: openCrs.length },
+          { value: "work", label: "FE work", count: site.workItems.filter((w) => w.status !== "DONE").length },
           { value: "log", label: "Daily log", count: site.dailyLogs.length },
+          ...(canSeeCosts(me.role) ? [{ value: "costs" as const, label: "Costs" }] : []),
           { value: "activity", label: "Activity" },
         ]}
       />
@@ -158,6 +163,7 @@ export default function SiteDetailPage() {
                 </CardContent>
               </Card>
             )}
+            <SiteCrewCard siteId={site.id} crew={site.crew.map((c) => c.user)} canEdit={canEdit} onSaved={reload} />
             <Card>
               <CardHeader><CardTitle>Milestones & money</CardTitle></CardHeader>
               <CardContent>
@@ -187,7 +193,11 @@ export default function SiteDetailPage() {
       {tab === "crs" && (
         <ChangeRequestsSection siteId={site.id} crs={site.changeRequests} canEdit={canEdit} closed={site.step === EricssonStep.CLOSED} onChanged={reload} />
       )}
+      {tab === "work" && (
+        <CrewWorkSection siteId={site.id} items={site.workItems} crew={site.crew.map((c) => c.user)} canEdit={canEdit} closed={site.step === EricssonStep.CLOSED} onChanged={reload} />
+      )}
       {tab === "log" && <DailyLogSection siteId={site.id} logs={site.dailyLogs} canEdit={canEdit} onChanged={reload} />}
+      {tab === "costs" && canSeeCosts(me.role) && <SiteCosts siteId={site.id} closed={site.step === EricssonStep.CLOSED} />}
       {tab === "activity" && (
         <Card>
           <CardContent className="pt-2">

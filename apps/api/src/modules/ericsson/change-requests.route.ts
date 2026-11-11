@@ -4,8 +4,9 @@ import { z } from "zod";
 
 import { CR_STATUS_LABELS, ChangeRequestStatus, ChangeRequestType } from "@erp/types";
 import { httpError, notFound } from "../../lib/http.js";
-import { PERSON_SELECT, assertCanEdit, assertSite, logEvent } from "./ericsson.shared.js";
+import { PERSON_SELECT, assertCanWorkOnSite, assertSite, logEvent } from "./ericsson.shared.js";
 import { crNumberLabel, crTotal, crTransitionError } from "./change-requests.logic.js";
+import { onCrEvent } from "./ericsson.notify.js";
 
 // SOP steps 6 and 8: change requests, a parallel track to the site steps.
 
@@ -52,9 +53,9 @@ export async function ericssonChangeRequestsRoute(app: FastifyInstance) {
   });
 
   app.post("/api/ericsson/sites/:id/change-requests", guard, async (req, reply) => {
-    assertCanEdit(req.user.role);
     const { id } = IdParams.parse(req.params);
     const site = await assertSite(app, id);
+    await assertCanWorkOnSite(app, req.user, id);
     if (site.step === "CLOSED") throw httpError(409, "This site is closed");
     const b = CreateCrSchema.parse(req.body);
     const price = crTotal({ type: b.type, amount: b.amount, vendorQuote: b.vendorQuote });
@@ -74,6 +75,7 @@ export async function ericssonChangeRequestsRoute(app: FastifyInstance) {
       },
     });
     await logEvent(app.db, id, req.user.sub, "CR_RAISED", `${crNumberLabel(cr.number)} raised: ${cr.title} ($${price.total.toLocaleString("en-US")})`);
+    void onCrEvent(app, cr.id, req.user.sub);
     return reply.status(201).send(cr);
   });
 
@@ -98,6 +100,7 @@ export async function ericssonChangeRequestsRoute(app: FastifyInstance) {
 
     await logEvent(app.db, cr.siteId, req.user.sub, "CR_STATUS",
       `${crNumberLabel(cr.number)}: ${CR_STATUS_LABELS[cr.status as ChangeRequestStatus]} → ${CR_STATUS_LABELS[to]}${note ? ` · ${note}` : ""}`);
+    void onCrEvent(app, id, req.user.sub);
     return app.db.ericssonChangeRequest.findUnique({ where: { id } });
   });
 }

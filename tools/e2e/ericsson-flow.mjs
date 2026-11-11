@@ -98,6 +98,21 @@ r = await act(dl, { action: "COMPLETE_SOW" });
 ok(r.status === 409, `SOW completion needs a daily log (${r.json.error})`);
 r = await dl("POST", `/ericsson/sites/${siteId}/daily-logs`, { workDate: "2026-11-10", summary: "Antennas mounted", crewCount: 4, hoursEach: 8, blocked: true, blockerNote: "Ceiling access" });
 ok(r.status === 201, "daily log");
+// Daily tracker costs
+r = await dl("POST", `/ericsson/sites/${siteId}/expenses`, { workDate: "2026-11-10", category: "LABOR", description: "Antennas", amount: 2560 });
+ok(r.status === 400, `labor cost needs hours (${r.status})`);
+r = await dl("POST", `/ericsson/sites/${siteId}/expenses`, { workDate: "2026-11-10", category: "LABOR", description: "Antennas", personName: "Crew of 4", hours: 32, amount: 2560 });
+ok(r.status === 201, "delivery lead records labor cost");
+r = await fin("POST", `/ericsson/sites/${siteId}/expenses`, { workDate: "2026-11-10", category: "LABOR", description: "Borrowed RF tech", hours: 6, amount: 420, assigned: false });
+ok(r.status === 201, "finance records a borrowed-resource cost");
+const finCost = r.json.id;
+r = await fin("GET", `/ericsson/expenses?siteId=${siteId}`);
+ok(r.status === 200 && r.json.totals.total === 2980 && r.json.totals.borrowedHours === 6, `cost totals ${r.json.totals?.total}, borrowed hrs ${r.json.totals?.borrowedHours}`);
+r = await dl("DELETE", `/ericsson/expenses/${finCost}`);
+ok(r.status === 403, `delivery lead cannot remove someone else's cost (${r.status})`);
+r = await pm("DELETE", `/ericsson/expenses/${finCost}`);
+ok(r.status === 204, "PM removes a cost line");
+
 r = await dl("POST", `/ericsson/sites/${siteId}/change-requests`, { type: "SUB_VENDOR", title: "Core drilling", reason: "Licensed sub-vendor requested", vendorQuote: 6000 });
 ok(r.status === 201 && Number(r.json.total) === 6180 && Number(r.json.passThroughPct) === 3, `CR with 3% pass-through total=${r.json.total}`);
 const crId = r.json.id;
@@ -148,6 +163,150 @@ ok(r.json.some((s) => s.id === siteId), "includeClosed=true shows it");
 const doc = (await pm("GET", `/ericsson/sites/${siteId}`)).json.documents[0];
 r = await fetch(`${BASE}/ericsson/documents/${doc.id}/download`, { headers: { authorization: "Bearer bad" } });
 ok(r.status === 401, `download requires auth (${r.status})`);
+r = await fin("GET", "/ericsson/reports/revenue-cost");
+const mine = r.json.sites?.find((s) => s.id === siteId);
+ok(r.status === 200 && mine?.billing === "APPROVED" && mine.contractValue === 47930 && mine.cost === 2560,
+  `report: contract ${mine?.contractValue} (SOV 41,750 + CR 6,180), cost ${mine?.cost}, ${mine?.billing}`);
+r = await dl("GET", "/ericsson/reports/revenue-cost");
+ok(r.status === 403, `delivery lead cannot see financial reports (${r.status})`);
+r = await fetch(`${BASE}/ericsson/sites/export?includeClosed=true`, { headers: { authorization: `Bearer ${await login("ashish@integertel.com")}` } });
+ok(r.status === 200 && (r.headers.get("content-type") ?? "").includes("spreadsheetml"), `site tracker exports to Excel (${r.status})`);
+// Field crew: email-code sign-in and deny-by-default access
+const crewEmail = `e2e.crew.${Date.now()}@example.test`;
+const admin = client(await login("niranjan.tamhane@integertel.com"));
+r = await admin("POST", "/users", { email: crewEmail, firstName: "E2E", lastName: "Crew", role: "FIELD_CREW" });
+ok(r.status === 201, "admin adds a Field crew user");
+const crewId = r.json.id;
+const reqCode = async (email) => (await fetch(`${BASE}/auth/otp/request`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) })).json();
+const staffCode = await reqCode("vidhya@integertel.com");
+ok(staffCode.sent === true && staffCode.devCode === undefined, "staff email gets no code (same answer, no code)");
+const c1 = await reqCode(crewEmail);
+ok(/^\d{6}$/.test(c1.devCode ?? ""), "crew gets a 6-digit code (shown on test servers without email)");
+const verify = (code) => fetch(`${BASE}/auth/otp/verify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: crewEmail, code }) }).then(async (x) => ({ status: x.status, json: await x.json() }));
+r = await verify(c1.devCode === "000000" ? "111111" : "000000");
+ok(r.status === 401, "wrong code is rejected");
+r = await verify(c1.devCode);
+ok(r.status === 200 && r.json.accessToken, "crew signs in with the code");
+const crew = client(r.json.accessToken);
+r = await verify(c1.devCode);
+ok(r.status === 401, "a code works only once");
+
+// A fresh site in execution for the crew to work on.
+r = await pm("POST", "/ericsson/sites", { siteCode: `${code}-C`, venueName: "E2E Crew Venue", scope: "IBS_ICI", deliveryLeadId: id("ashish@integertel.com") });
+const crewSite = r.json.id;
+r = await crew("GET", "/field/sites");
+ok(r.status === 200 && r.json.length === 0, "crew sees no sites before being assigned");
+r = await crew("GET", `/field/sites/${crewSite}`);
+ok(r.status === 403, `crew cannot open a site they're not on (${r.status})`);
+r = await pm("PUT", `/ericsson/sites/${crewSite}/crew`, { userIds: [crewId] });
+ok(r.status === 200, "PM assigns the crew member");
+r = await pm("PUT", `/ericsson/sites/${crewSite}/crew`, { userIds: [id("ashish@integertel.com")] });
+ok(r.status === 400, "only Field crew users can be on a crew");
+r = await crew("GET", `/field/sites/${crewSite}`);
+ok(r.status === 200 && r.json.siteCode === `${code}-C` && r.json.sovValue === undefined, "crew sees the site, without money");
+r = await crew("POST", `/ericsson/sites/${crewSite}/daily-logs`, { workDate: "2026-11-10", summary: "Cable pulls", crewCount: 2, hoursEach: 8 });
+ok(r.status === 403, `crew don't submit the site's headcount log (${r.status})`);
+
+// Crew work: assigned to one person, updated by that person.
+r = await crew("POST", `/ericsson/sites/${crewSite}/work-items`, { title: "x", assigneeId: crewId });
+ok(r.status === 403, `crew cannot assign work (${r.status})`);
+r = await pm("POST", `/ericsson/sites/${crewSite}/work-items`, { title: "Mount antennas, level 2", assigneeId: id("ashish@integertel.com") });
+ok(r.status === 400, "work can only go to someone on the site's crew");
+r = await pm("POST", `/ericsson/sites/${crewSite}/work-items`, { title: "Mount antennas, level 2", assigneeId: crewId, dueDate: "2026-11-12" });
+ok(r.status === 201, "PM assigns work to the crew member");
+const workId = r.json.id;
+r = await crew("GET", "/field/my-work");
+ok(r.status === 200 && r.json.some((w) => w.id === workId && w.status === "TODO"), "crew sees the work in My work");
+r = await crew("POST", `/field/work-items/${workId}/updates`, { status: "BLOCKED", hours: 2 });
+ok(r.status === 400, "blocked needs a reason");
+r = await crew("POST", `/field/work-items/${workId}/updates`, { status: "CANCELLED", hours: 0 });
+ok(r.status === 403, "crew cannot cancel work");
+r = await crew("POST", `/field/work-items/${workId}/updates`, { status: "IN_PROGRESS", hours: 6, note: "Half the antennas up" });
+ok(r.status === 201, "crew updates their own work (in progress, 6 hrs)");
+// A second crew member on the site can't touch work that isn't theirs.
+const crew2Email = `e2e.crew2.${Date.now()}@example.test`;
+const crew2Id = (await admin("POST", "/users", { email: crew2Email, firstName: "E2E", lastName: "Crew Two", role: "FIELD_CREW" })).json.id;
+await pm("PUT", `/ericsson/sites/${crewSite}/crew`, { userIds: [crewId, crew2Id] });
+const c2 = await reqCode(crew2Email);
+const crew2 = client((await fetch(`${BASE}/auth/otp/verify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: crew2Email, code: c2.devCode }) }).then((x) => x.json())).accessToken);
+r = await crew2("POST", `/field/work-items/${workId}/updates`, { status: "DONE", hours: 1 });
+ok(r.status === 403, `another crew member cannot update it (${r.status})`);
+
+// The SOW gate waits for crew work.
+await pm("POST", `/ericsson/sites/${crewSite}/documents`, (() => { const f = new FormData(); f.append("type", "SOV"); f.append("file", new Blob(["%PDF"], { type: "application/pdf" }), "s.pdf"); return f; })());
+await pm("PATCH", `/ericsson/sites/${crewSite}`, {});
+r = await crew("POST", `/field/work-items/${workId}/updates`, { status: "DONE", hours: 2, note: "All up" });
+ok(r.status === 201, "crew marks their work done");
+r = await pm("GET", `/ericsson/sites/${crewSite}`);
+const w = r.json.workItems.find((x) => x.id === workId);
+ok(w?.status === "DONE" && w.completedAt && w.updates.length === 2, `site shows the work done with 2 updates (${w?.status})`);
+// FE expense claims: bill attached, manager approves, only then Finance sees it.
+const claimForm = (fields, withReceipt = true) => {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(fields)) f.append(k, String(v));
+  if (withReceipt) f.append("receipt", new Blob(["%PDF-1.4 receipt"], { type: "application/pdf" }), "toll.pdf");
+  return f;
+};
+const claim = { siteId: crewSite, expenseType: "TRAVEL_TOLL", workDate: "2026-11-10", amount: "25", paymentMethod: "PERSONAL_CARD", note: "Tolls" };
+r = await crew("POST", "/field/expenses", claimForm(claim, false));
+ok(r.status === 400, "an expense needs the bill attached");
+r = await crew("POST", "/field/expenses", claimForm(claim));
+ok(r.status === 201 && r.json.status === "SUBMITTED" && r.json.approver?.email === "ashish@integertel.com" && r.json.receiptKey === undefined,
+  `FE submits an expense; it goes to the site's delivery lead (no manager set) (${r.json.approver?.email})`);
+const claimId = r.json.id;
+r = await crew("GET", "/field/expenses");
+ok(r.json.some((c) => c.id === claimId && c.status === "SUBMITTED"), "FE sees their claim waiting for approval");
+r = await fin("GET", `/ericsson/expenses?siteId=${crewSite}`);
+ok(!r.json.rows.some((x) => x.id === claimId), "Finance can't see it before approval");
+r = await fin("GET", `/expenses/${claimId}/receipt`);
+ok(r.status === 403, `Finance can't open the bill before approval (${r.status})`);
+r = await crew("POST", `/expense-approvals/${claimId}/decide`, { decision: "APPROVE" });
+ok(r.status === 403, "the FE can't approve their own expense");
+r = await pm("POST", `/expense-approvals/${claimId}/decide`, { decision: "APPROVE" });
+ok(r.status === 403, "a PM who isn't the approver can't approve it");
+r = await dl("GET", "/expense-approvals");
+ok(r.json.some((c) => c.id === claimId), "the approver sees it in Expense approvals");
+r = await dl("POST", `/expense-approvals/${claimId}/decide`, { decision: "REJECT" });
+ok(r.status === 400, "rejecting needs a reason");
+r = await dl("POST", `/expense-approvals/${claimId}/decide`, { decision: "APPROVE" });
+ok(r.status === 200 && r.json.status === "APPROVED", "the manager approves it");
+r = await dl("POST", `/expense-approvals/${claimId}/decide`, { decision: "APPROVE" });
+ok(r.status === 409, "it can't be decided twice");
+r = await fin("GET", `/ericsson/expenses?siteId=${crewSite}`);
+ok(r.json.rows.some((x) => x.id === claimId && x.category === "TRAVEL") && r.json.totals.owedToEngineers === 25, "Finance now sees it as a travel cost, $25 owed to the FE");
+r = await fin("GET", `/expenses/${claimId}/receipt`);
+ok(r.status === 200, "Finance can open the bill after approval");
+r = await fin("GET", "/ericsson/reports/revenue-cost");
+ok(r.json.sites.find((s) => s.id === crewSite)?.otherCost === 25, "the approved expense counts in the cost report");
+r = await fin("POST", `/ericsson/expenses/${claimId}/reimbursed`);
+ok(r.status === 200 && r.json.reimbursedAt, "Finance marks the personal-card claim reimbursed");
+r = await crew("DELETE", `/field/expenses/${claimId}`);
+ok(r.status === 409, "an approved claim can't be withdrawn");
+r = await crew("POST", "/field/expenses", claimForm({ ...claim, expenseType: "HOTEL", amount: "140", paymentMethod: "CORPORATE_CARD" }));
+const claim2 = r.json.id;
+r = await dl("POST", `/expense-approvals/${claim2}/decide`, { decision: "REJECT", reason: "Wrong site" });
+ok(r.status === 200 && r.json.status === "REJECTED", "the manager rejects a claim with a reason");
+r = await crew2("GET", `/expenses/${claim2}/receipt`);
+ok(r.status === 403, "another FE can't see the claim");
+r = await crew("DELETE", `/field/expenses/${claim2}`);
+ok(r.status === 204, "the FE withdraws the rejected claim");
+
+for (const [m, p] of [["GET", "/ericsson/sites"], ["GET", "/ericsson/summary"]]) await crew2(m, p);
+await admin("PATCH", `/users/${crew2Id}`, { isActive: false });
+const photo = new FormData(); photo.append("type", "PHOTO"); photo.append("file", new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" }), "p.png");
+r = await crew("POST", `/ericsson/sites/${crewSite}/documents`, photo);
+ok(r.status === 201, "crew uploads a site photo");
+const sov = new FormData(); sov.append("type", "SOV"); sov.append("file", new Blob(["%PDF"], { type: "application/pdf" }), "s.pdf");
+r = await crew("POST", `/ericsson/sites/${crewSite}/documents`, sov);
+ok(r.status === 403, `crew cannot upload an SOV (${r.status})`);
+r = await crew("POST", `/ericsson/sites/${crewSite}/change-requests`, { type: "EXTRA_VISIT", title: "Lift out", reason: "Venue lift broken" });
+ok(r.status === 201, "crew raises a change request");
+for (const [m, p] of [["GET", "/ericsson/sites"], ["GET", `/ericsson/sites/${crewSite}`], ["GET", "/ericsson/summary"], ["GET", "/ericsson/reports/revenue-cost"], ["GET", "/users"], ["GET", "/ericsson/my-work"]]) {
+  r = await crew(m, p);
+  ok(r.status === 403, `crew blocked from ${m} ${p} (${r.status})`);
+}
+r = await admin("PATCH", `/users/${crewId}`, { isActive: false });
+
 r = await fin("PATCH", `/users/${id("vidhya@integertel.com")}`, { role: "VIEWER" });
 ok(r.status === 403, `non-admin cannot change roles (${r.status})`);
 

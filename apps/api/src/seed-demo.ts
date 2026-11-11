@@ -15,7 +15,52 @@ export const SAMPLE_MARK = "[Sample data]";
 export const DEMO_USERS = [
   { email: "ops.leader@example.test", firstName: "Test", lastName: "Ops Leader", designation: "Operations leader (test account)", role: "OPS_LEADER" as const },
   { email: "viewer@example.test", firstName: "Test", lastName: "Viewer", designation: "Read-only (test account)", role: "VIEWER" as const },
+  { email: "crew.tech1@example.test", firstName: "Test", lastName: "Technician One", designation: "Field technician (test account)", role: "FIELD_CREW" as const },
+  { email: "crew.tech2@example.test", firstName: "Test", lastName: "Technician Two", designation: "Field technician (test account)", role: "FIELD_CREW" as const },
 ];
+
+/** Sample crew assignments: technician one on both sites in execution, technician two on one. */
+const CREW_ON: Record<string, string[]> = {
+  "E-IBS-1049": ["crew.tech1@example.test", "crew.tech2@example.test"],
+  "E-IBS-1044": ["crew.tech1@example.test"],
+};
+
+/** Sample FE expense claims (one waiting, one approved, one rejected) to try the approval flow. */
+const CLAIMS: Record<string, { by: string; type: string; label: string; amount: number; daysAgo: number; pay: "CORPORATE_CARD" | "PERSONAL_CARD"; status: "SUBMITTED" | "APPROVED" | "REJECTED"; note?: string; reason?: string }[]> = {
+  "E-IBS-1049": [
+    { by: "crew.tech1@example.test", type: "TRAVEL_TOLL", label: "Travel - Toll", amount: 18.5, daysAgo: 3, pay: "CORPORATE_CARD", status: "APPROVED", note: "I-95 tolls to site" },
+    { by: "crew.tech1@example.test", type: "HOTEL", label: "Hotel", amount: 129, daysAgo: 1, pay: "PERSONAL_CARD", status: "SUBMITTED", note: "1 night near stadium" },
+    { by: "crew.tech1@example.test", type: "TRAVEL_FOOD", label: "Travel - Food", amount: 42.75, daysAgo: 2, pay: "PERSONAL_CARD", status: "REJECTED", reason: "Itemised bill missing, please attach it and resubmit" },
+  ],
+  "E-IBS-1044": [
+    { by: "crew.tech1@example.test", type: "PARKING", label: "Parking", amount: 24, daysAgo: 2, pay: "CORPORATE_CARD", status: "SUBMITTED" },
+  ],
+};
+
+type WorkStatus = "TODO" | "IN_PROGRESS" | "DONE" | "BLOCKED";
+/** Sample crew work: dueIn is days from today (negative = overdue). */
+const CREW_WORK: Record<string, { to: string; title: string; dueIn: number; updates: { daysAgo: number; hours: number; status: WorkStatus; note?: string }[] }[]> = {
+  "E-IBS-1049": [
+    { to: "crew.tech1@example.test", title: "Mount antennas, levels 2–3", dueIn: 0, updates: [
+      { daysAgo: 2, hours: 8, status: "IN_PROGRESS", note: "Level 2 done" },
+      { daysAgo: 1, hours: 7.5, status: "DONE", note: "Level 3 done, 12 antennas total" },
+    ] },
+    { to: "crew.tech1@example.test", title: "Terminate coax runs, levels 2–3", dueIn: -1, updates: [
+      { daysAgo: 1, hours: 4, status: "IN_PROGRESS", note: "18 of 24 runs terminated" },
+    ] },
+    { to: "crew.tech2@example.test", title: "BBU swap and decommission old unit", dueIn: 2, updates: [
+      { daysAgo: 2, hours: 6, status: "BLOCKED", note: "Ceiling access held by venue security" },
+    ] },
+    { to: "crew.tech2@example.test", title: "Label all antennas and runs", dueIn: 3, updates: [] },
+  ],
+  "E-IBS-1044": [
+    { to: "crew.tech1@example.test", title: "Install floors 1–4", dueIn: -2, updates: [
+      { daysAgo: 3, hours: 8, status: "IN_PROGRESS" },
+      { daysAgo: 2, hours: 8, status: "DONE", note: "All four floors in" },
+    ] },
+    { to: "crew.tech1@example.test", title: "RF walk on P1 parking level", dueIn: 1, updates: [] },
+  ],
+};
 
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
@@ -55,6 +100,7 @@ interface SampleSite {
     status: "PM_REVIEW" | "SUBMITTED" | "APPROVED" | "REJECTED"; daysAgo: number; note?: string;
   }[];
   logs?: { daysAgo: number; summary: string; crew: number; hours: number; blocker?: string }[];
+  costs?: { daysAgo: number; category: "LABOR" | "MATERIAL" | "TRAVEL" | "VENDOR"; description: string; person?: string; borrowed?: boolean; hours?: number; amount: number }[];
   events: { daysAgo: number; who: "pm" | "apm" | "dl" | "pc"; type: string; message: string }[];
 }
 
@@ -105,6 +151,10 @@ function sites(): SampleSite[] {
         { item: "Weatherproofing tape", bomQty: 10, status: "IN_STOCK" },
       ],
       crs: [{ type: "EXTRA_MATERIAL", title: "Delay from BBU back-order", reason: "BBU back-ordered to the ETA shown. Crew remobilization needed after delivery.", amount: 4950, extraDays: 1, status: "SUBMITTED", daysAgo: 2 }],
+      costs: [
+        { daysAgo: 2, category: "MATERIAL", description: "MO-2212 fiber jumpers + DC kit", person: "Supplier", amount: 1240 },
+        { daysAgo: 5, category: "MATERIAL", description: "MO-2209 grounding kits", person: "Supplier", amount: 240 },
+      ],
       events: [
         { daysAgo: 3, who: "apm", type: "RECORD_RFX", message: "RFX RFX-77120 recorded and accepted → RFX receipt & material procurement" },
         { daysAgo: 2, who: "apm", type: "MATERIAL_STATUS", message: "BBU 6630: Ordered → Back-ordered" },
@@ -123,6 +173,13 @@ function sites(): SampleSite[] {
         { daysAgo: 2, summary: "BBU swapped, old unit decommissioned.", crew: 4, hours: 7.5, blocker: "Ceiling access delayed 3 hrs by venue security" },
         { daysAgo: 1, summary: "Levels 2–3: antennas mounted, 18 of 24 runs terminated.", crew: 4, hours: 8 },
       ],
+      costs: [
+        { daysAgo: 3, category: "LABOR", description: "Site walk, staging, cable pulls L1", person: "Crew of 3", hours: 24, amount: 1920 },
+        { daysAgo: 2, category: "LABOR", description: "BBU swap, decommission old unit", person: "Crew of 4", hours: 30, amount: 2400 },
+        { daysAgo: 2, category: "TRAVEL", description: "Parking & tolls", person: "Crew", amount: 46 },
+        { daysAgo: 1, category: "LABOR", description: "Antenna mount L2–3, terminations", person: "Crew of 4", hours: 32, amount: 2560 },
+        { daysAgo: 1, category: "TRAVEL", description: "Mileage 84 mi × 2 vans", person: "Crew", amount: 118 },
+      ],
       events: [
         { daysAgo: 4, who: "apm", type: "START_EXECUTION", message: "Start work execution → Work execution" },
         { daysAgo: 1, who: "dl", type: "DAILY_LOG", message: "Daily log: crew of 4, 32 labor hrs" },
@@ -136,6 +193,10 @@ function sites(): SampleSite[] {
         { type: "SCOPE_DEVIATION", title: "Two extra antennas in parking level", reason: "RF walk found a dead zone on P1. Estimate for additional drivers attached.", amount: 4320, status: "SUBMITTED", daysAgo: 5 },
       ],
       logs: [{ daysAgo: 2, summary: "Floors 1–4 complete. P1 dead zone found on RF walk.", crew: 3, hours: 8 }],
+      costs: [
+        { daysAgo: 2, category: "LABOR", description: "Floors 1–4 install", person: "Crew of 3", hours: 24, amount: 1920 },
+        { daysAgo: 1, category: "LABOR", description: "RF walk on P1 (support tech)", person: "R. Patel", borrowed: true, hours: 6, amount: 420 },
+      ],
       events: [{ daysAgo: 6, who: "apm", type: "START_EXECUTION", message: "Start work execution → Work execution" }],
     },
     {
@@ -153,6 +214,11 @@ function sites(): SampleSite[] {
       site: { siteCode: "E-IBS-1033", venueName: "Convention Center Hall A", scope: "IBS_ICI", venueSqft: 210000, step: "INVOICING", stepChangedAt: daysAgo(1), sovValue: 48900, sovVersion: 1, sovAcceptedAt: daysAgo(35), rfxNumber: "RFX-76940", rfxRequestedAt: daysAgo(35), rfxReceivedAt: dateOnly(32), rfxAcceptedAt: daysAgo(32), executionStartedAt: daysAgo(20), sowCompletedAt: daysAgo(6), vssDate: dateOnly(5), vssOutcome: "PASSED", ae202SubmittedAt: daysAgo(4), ae202StampedAt: daysAgo(1), targetDate: dateOnly(-4), notes: `${SAMPLE_MARK} Step 9: AE202 stamped, ready to upload the invoice to SRM.` },
       docs: [{ type: "SOV", daysAgo: 40 }, { type: "BOM", daysAgo: 40 }, { type: "RFDS", daysAgo: 40 }, { type: "RFX", daysAgo: 32 }, { type: "AE202", daysAgo: 4 }, { type: "CR_APPROVAL", daysAgo: 9 }],
       crs: [{ type: "EXTRA_VISIT", title: "Extra visit for walk test", reason: "Walk test needed a second visit after a venue event.", amount: 2350, status: "APPROVED", daysAgo: 10, note: "Approved" }],
+      costs: [
+        { daysAgo: 15, category: "LABOR", description: "IC&I install, 4 days", person: "Crew of 4", hours: 128, amount: 10240 },
+        { daysAgo: 9, category: "VENDOR", description: "Lift rental (sub-vendor)", person: "Vendor", amount: 1000 },
+        { daysAgo: 12, category: "MATERIAL", description: "Integer-procured material", person: "Supplier", amount: 1240 },
+      ],
       events: [{ daysAgo: 1, who: "dl", type: "STAMP_AE202", message: "Record client stamp → Invoicing & project closure" }],
     },
     {
@@ -163,15 +229,20 @@ function sites(): SampleSite[] {
     {
       site: { siteCode: "E-IBS-1021", venueName: "Medical Office Park", scope: "IBS_ICI", venueSqft: 80000, step: "CLOSED", stepChangedAt: daysAgo(10), sovValue: 36100, sovVersion: 1, sovAcceptedAt: daysAgo(60), rfxNumber: "RFX-76811", rfxRequestedAt: daysAgo(60), rfxReceivedAt: dateOnly(57), rfxAcceptedAt: daysAgo(57), executionStartedAt: daysAgo(45), sowCompletedAt: daysAgo(30), vssDate: dateOnly(28), vssOutcome: "PASSED", ae202SubmittedAt: daysAgo(27), ae202StampedAt: daysAgo(25), srmInvoiceNumber: "SRM-INV-5402", invoiceUploadedAt: daysAgo(24), invoiceApprovedAt: daysAgo(12), closedAt: daysAgo(10), targetDate: dateOnly(30), notes: `${SAMPLE_MARK} Closed: the full lifecycle, start to finish.` },
       docs: [{ type: "SOV", daysAgo: 65 }, { type: "BOM", daysAgo: 65 }, { type: "RFDS", daysAgo: 65 }, { type: "AE202", daysAgo: 27 }, { type: "INVOICE", daysAgo: 24 }],
+      costs: [
+        { daysAgo: 40, category: "LABOR", description: "IC&I install, 4 days", person: "Crew of 3", hours: 96, amount: 7680 },
+        { daysAgo: 40, category: "TRAVEL", description: "Mileage and parking", person: "Crew", amount: 310 },
+      ],
       events: [{ daysAgo: 10, who: "pm", type: "CLOSE_SITE", message: "Close site → Closed" }],
     },
   ];
 }
 
 export async function resetDemo(db: PrismaClient): Promise<number> {
-  // DEMO-* were the first, smaller set of sample sites (before SAMPLE_MARK existed).
+  // DEMO-* were the first, smaller set of sample sites (before SAMPLE_MARK existed);
+  // E2E-* are left behind by tools/e2e/ericsson-flow.mjs runs.
   const { count } = await db.ericssonSite.deleteMany({
-    where: { OR: [{ notes: { startsWith: SAMPLE_MARK } }, { siteCode: { startsWith: "DEMO-" } }] },
+    where: { OR: [{ notes: { startsWith: SAMPLE_MARK } }, { siteCode: { startsWith: "DEMO-" } }, { siteCode: { startsWith: "E2E-" } }] },
   });
   return count;
 }
@@ -179,6 +250,9 @@ export async function resetDemo(db: PrismaClient): Promise<number> {
 /** Creates the sample sites that don't exist yet. Existing sites (sample or real) are left alone. */
 export async function seedDemo(db: PrismaClient): Promise<number> {
   for (const u of DEMO_USERS) await db.user.upsert({ where: { email: u.email }, update: {}, create: u });
+  // The sample field engineers report to the delivery lead, who approves their expenses.
+  const dlId = (await db.user.findUniqueOrThrow({ where: { email: "ashish@integertel.com" } })).id;
+  await db.user.updateMany({ where: { role: "FIELD_CREW", email: { endsWith: "@example.test" }, managerId: null }, data: { managerId: dlId } });
 
   const id = async (email: string) => (await db.user.findUniqueOrThrow({ where: { email } })).id;
   const team = {
@@ -249,8 +323,52 @@ export async function seedDemo(db: PrismaClient): Promise<number> {
       });
     }
 
+    for (const c of s.costs ?? []) {
+      await db.ericssonExpense.create({
+        data: {
+          siteId: site.id, workDate: dateOnly(c.daysAgo), category: c.category, description: c.description,
+          personName: c.person ?? null, assigned: !c.borrowed, hours: c.hours ?? null, amount: c.amount,
+          createdById: team.pc, createdAt: daysAgo(c.daysAgo),
+        },
+      });
+    }
+
     for (const e of s.events) {
       await db.ericssonSiteEvent.create({ data: { siteId: site.id, actorId: team[e.who], type: e.type, message: e.message, createdAt: daysAgo(e.daysAgo) } });
+    }
+    for (const email of CREW_ON[s.site.siteCode] ?? []) {
+      await db.ericssonSiteCrew.create({ data: { siteId: site.id, userId: await id(email) } });
+    }
+    for (const c of CLAIMS[s.site.siteCode] ?? []) {
+      const by = await db.user.findUniqueOrThrow({ where: { email: c.by }, select: { id: true, firstName: true, lastName: true } });
+      const receiptKey = await saveFile(`expense-receipts/${by.id}`, "receipt.pdf", placeholderPdf(`${c.label} receipt`));
+      const decided = c.status !== "SUBMITTED";
+      await db.ericssonExpense.create({
+        data: {
+          siteId: site.id, workDate: dateOnly(c.daysAgo), category: c.type === "CABLE" ? "MATERIAL" : c.type === "OTHERS" ? "OTHER" : "TRAVEL",
+          description: c.note ? `${c.label}: ${c.note}` : c.label, personName: `${by.firstName} ${by.lastName}`, amount: c.amount,
+          createdById: by.id, createdAt: daysAgo(c.daysAgo), status: c.status, claimType: c.type, paymentMethod: c.pay,
+          receiptKey, receiptName: "receipt.pdf", receiptMime: "application/pdf", approverId: team.dl,
+          ...(decided ? { decidedById: team.dl, decidedAt: daysAgo(Math.max(0, c.daysAgo - 1)) } : {}),
+          ...(c.reason ? { rejectionReason: c.reason } : {}),
+        },
+      });
+    }
+
+    for (const w of CREW_WORK[s.site.siteCode] ?? []) {
+      const assigneeId = await id(w.to);
+      const item = await db.ericssonWorkItem.create({
+        data: {
+          siteId: site.id, title: w.title, assigneeId, createdById: team.dl, dueDate: dateOnly(-w.dueIn), // dueIn is days ahead
+          status: w.updates.at(-1)?.status ?? "TODO", completedAt: w.updates.at(-1)?.status === "DONE" ? daysAgo(w.updates.at(-1)!.daysAgo) : null,
+          createdAt: daysAgo(4),
+        },
+      });
+      for (const u of w.updates) {
+        await db.ericssonWorkUpdate.create({
+          data: { workItemId: item.id, userId: assigneeId, workDate: dateOnly(u.daysAgo), hours: u.hours, status: u.status, note: u.note ?? null, createdAt: daysAgo(u.daysAgo) },
+        });
+      }
     }
     created++;
   }

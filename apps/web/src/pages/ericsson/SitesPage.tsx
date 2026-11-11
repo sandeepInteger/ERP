@@ -13,10 +13,16 @@ import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableR
 import { useApi } from "../../hooks/useApi.js";
 import { useMe } from "../../context/MeContext.js";
 import { money, date } from "../../lib/format.js";
+import { errMsg } from "../../lib/api.js";
+import { downloadFile } from "../../lib/download.js";
+import { useToast } from "../../context/ToastContext.js";
+import { AsyncButton } from "../../components/ui/async-button.js";
+import { Download } from "lucide-react";
 import type { SiteRow } from "../../lib/ericsson.js";
 
 export default function SitesPage() {
   const me = useMe();
+  const toast = useToast();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -37,6 +43,15 @@ export default function SitesPage() {
 
   const { data, error, loading } = useApi<SiteRow[]>(`/ericsson/sites?${query}`);
 
+  async function exportXlsx() {
+    try {
+      await downloadFile(`/ericsson/sites/export?${query}`, "ericsson-sites.xlsx");
+    } catch (e) {
+      toast(errMsg(e), "error");
+      throw e;
+    }
+  }
+
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value); else next.delete(key);
@@ -54,9 +69,12 @@ export default function SitesPage() {
         kicker="Ericsson IBS"
         title="Site tracker"
         description="Every assigned site, its current SOP step and who owns it."
-        actions={ERICSSON_EDIT_ROLES.has(me.role) && (
-          <Button asChild><Link to="/ericsson/sites/new">+ New site assignment</Link></Button>
-        )}
+        actions={
+          <>
+            <AsyncButton variant="outline" onClick={() => exportXlsx()}><Download size={15} /> Export to Excel</AsyncButton>
+            {ERICSSON_EDIT_ROLES.has(me.role) && <Button asChild><Link to="/ericsson/sites/new">+ New site assignment</Link></Button>}
+          </>
+        }
       />
 
       <div className="flex flex-wrap items-end gap-3">

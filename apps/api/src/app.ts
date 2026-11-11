@@ -14,6 +14,10 @@ import { MAX_UPLOAD_BYTES } from "./lib/storage.js";
 import { healthRoute } from "./modules/health/health.route.js";
 import { authRoute } from "./modules/auth/auth.route.js";
 import { ssoRoute } from "./modules/auth/sso.route.js";
+import { otpRoute } from "./modules/auth/otp.route.js";
+import { fieldRoute } from "./modules/ericsson/field.route.js";
+import { ericssonWorkItemsRoute } from "./modules/ericsson/work-items.route.js";
+import { ericssonClaimsRoute } from "./modules/ericsson/claims.route.js";
 import { usersRoute } from "./modules/users/users.route.js";
 import { raciRoute } from "./modules/raci/raci.route.js";
 import { ericssonSitesRoute } from "./modules/ericsson/sites.route.js";
@@ -22,6 +26,12 @@ import { ericssonVerificationRoute } from "./modules/ericsson/verification.route
 import { ericssonMaterialsRoute } from "./modules/ericsson/materials.route.js";
 import { ericssonChangeRequestsRoute } from "./modules/ericsson/change-requests.route.js";
 import { ericssonDailyLogsRoute } from "./modules/ericsson/daily-logs.route.js";
+import { ericssonMyWorkRoute } from "./modules/ericsson/my-work.route.js";
+import { ericssonExpensesRoute } from "./modules/ericsson/expenses.route.js";
+import { ericssonReportsRoute } from "./modules/ericsson/reports.route.js";
+import { notificationsRoute } from "./modules/notifications/notifications.route.js";
+import { settingsRoute } from "./modules/settings/settings.route.js";
+import { registerEricssonJobs } from "./jobs/ericsson-jobs.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -87,6 +97,10 @@ export async function buildApp() {
   await app.register(healthRoute);
   await app.register(authRoute);
   await app.register(ssoRoute);
+  await app.register(otpRoute);
+  await app.register(fieldRoute);
+  await app.register(ericssonWorkItemsRoute);
+  await app.register(ericssonClaimsRoute);
   await app.register(usersRoute);
   await app.register(raciRoute);
   await app.register(ericssonSitesRoute);
@@ -95,6 +109,14 @@ export async function buildApp() {
   await app.register(ericssonMaterialsRoute);
   await app.register(ericssonChangeRequestsRoute);
   await app.register(ericssonDailyLogsRoute);
+  await app.register(ericssonMyWorkRoute);
+  await app.register(ericssonExpensesRoute);
+  // Before ericssonSitesRoute would matter only if paths overlapped: /sites/export is static, /sites/:id is not.
+  await app.register(ericssonReportsRoute);
+  await app.register(notificationsRoute);
+  await app.register(settingsRoute);
+
+  registerEricssonJobs(app);
 
   return app;
 }

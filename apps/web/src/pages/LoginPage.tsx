@@ -8,6 +8,7 @@ import { Button } from "../components/ui/button.js";
 import { Card } from "../components/ui/card.js";
 import { SelectField } from "../components/ui/input.js";
 import { Field, FormError } from "../components/ui/field.js";
+import { EmailCodeLogin } from "../components/EmailCodeLogin.js";
 
 const SSO_ERRORS: Record<string, string> = {
   missing_state: "Your sign-in session expired. Please try again.",
@@ -19,7 +20,7 @@ const SSO_ERRORS: Record<string, string> = {
   account_disabled: "Your access has been switched off. Contact an admin.",
 };
 
-interface Options { microsoft: boolean; devLogin: boolean }
+interface Options { microsoft: boolean; devLogin: boolean; emailCode: boolean }
 interface DevUser { email: string; firstName: string; lastName: string; role: string }
 
 export default function LoginPage() {
@@ -82,6 +83,12 @@ export default function LoginPage() {
         </Button>
         {options && !options.microsoft && (
           <p className="-mt-3 text-center text-xs text-surface-500">Microsoft sign-in is not configured on this server yet.</p>
+        )}
+
+        {options?.emailCode && (
+          <div className="border-t border-surface-200 pt-5">
+            <EmailCodeLogin />
+          </div>
         )}
 
         {options?.devLogin && (

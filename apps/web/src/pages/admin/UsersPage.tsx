@@ -17,7 +17,7 @@ import { dateTime } from "../../lib/format.js";
 
 interface UserRow {
   id: string; email: string; firstName: string; lastName: string; designation: string | null;
-  role: Role; isActive: boolean; lastLoginAt: string | null;
+  role: Role; isActive: boolean; lastLoginAt: string | null; managerId: string | null;
 }
 
 const EMPTY = { email: "", firstName: "", lastName: "", designation: "", role: Role.COORDINATOR as Role };
@@ -50,7 +50,10 @@ export default function UsersPage() {
     } catch (e) { setFormError(errMsg(e)); throw e; }
   }
 
-  async function update(u: UserRow, patch: Partial<Pick<UserRow, "role" | "isActive">>) {
+  // Who can be a manager (approves expenses): active staff, not field engineers or viewers.
+  const managers = (data ?? []).filter((u) => u.isActive && u.role !== Role.FIELD_CREW && u.role !== Role.VIEWER);
+
+  async function update(u: UserRow, patch: Partial<Pick<UserRow, "role" | "isActive" | "managerId">>) {
     try {
       await api.patch(`/users/${u.id}`, patch);
       toast(`${u.firstName} ${u.lastName} updated`);
@@ -94,12 +97,12 @@ export default function UsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead>
+                <TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Manager</TableHead>
                 <TableHead>Last sign-in</TableHead><TableHead>Status</TableHead><TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!data && <TableEmpty colSpan={6}>Loading…</TableEmpty>}
+              {!data && <TableEmpty colSpan={7}>Loading…</TableEmpty>}
               {data?.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="font-semibold">{u.firstName} {u.lastName}{u.designation && <div className="text-xs font-normal text-surface-500">{u.designation}</div>}</TableCell>
@@ -107,6 +110,13 @@ export default function UsersPage() {
                   <TableCell>
                     <SelectField aria-label={`Role of ${u.firstName}`} className="h-8 w-48" value={u.role} disabled={u.id === me.id} onChange={(e) => void update(u, { role: e.target.value as Role })}>
                       {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                    </SelectField>
+                  </TableCell>
+                  <TableCell>
+                    <SelectField aria-label={`Manager of ${u.firstName}`} className="h-8 w-44" value={u.managerId ?? ""}
+                      onChange={(e) => void update(u, { managerId: e.target.value || null })}>
+                      <option value="">None</option>
+                      {managers.filter((m) => m.id !== u.id).map((m) => <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>)}
                     </SelectField>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">{u.lastLoginAt ? dateTime(u.lastLoginAt) : "Never"}</TableCell>

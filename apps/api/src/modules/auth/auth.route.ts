@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
+import { emailEnabled } from "../../lib/email.js";
 import { DevLoginSchema } from "./auth.schema.js";
 import {
   REFRESH_COOKIE, issueSession, logoutService, meService, refreshService, setRefreshCookie,
@@ -35,6 +36,8 @@ export async function authRoute(app: FastifyInstance) {
   app.get("/api/auth/options", async () => ({
     microsoft: Boolean(process.env["AZURE_TENANT_ID"] && process.env["AZURE_CLIENT_ID"]),
     devLogin: devLoginEnabled(),
+    // Field crew sign in with an emailed code. Without SMTP it only works where dev login is on (code shown on screen).
+    emailCode: emailEnabled() || devLoginEnabled(),
   }));
 
   if (!devLoginEnabled()) return;

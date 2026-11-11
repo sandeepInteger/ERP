@@ -15,6 +15,9 @@ export const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
+  // iPhone camera photos (daily-log photos from the field view).
+  "image/heic",
+  "image/heif",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/msword",

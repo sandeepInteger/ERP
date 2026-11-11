@@ -10,19 +10,13 @@ import { Field, FormError } from "../ui/field.js";
 import { Input, SelectField } from "../ui/input.js";
 import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableScroll } from "../ui/table.js";
 import { api, errMsg } from "../../lib/api.js";
+import { downloadFile } from "../../lib/download.js";
 import { dateTime, fileSize, fullName } from "../../lib/format.js";
 import type { SiteDocument } from "../../lib/ericsson.js";
 import { useToast } from "../../context/ToastContext.js";
 
-async function download(doc: SiteDocument) {
-  // Fetched through the API client so the auth header goes with it.
-  const r = await api.get<Blob>(`/ericsson/documents/${doc.id}/download`, { responseType: "blob" });
-  const url = URL.createObjectURL(r.data);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = doc.fileName;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+function download(doc: SiteDocument) {
+  return downloadFile(`/ericsson/documents/${doc.id}/download`, doc.fileName);
 }
 
 export function DocumentsSection({

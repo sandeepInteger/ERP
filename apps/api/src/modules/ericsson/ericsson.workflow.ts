@@ -14,6 +14,10 @@ export interface SiteSnapshot {
   rfxAcceptedAt: Date | null;
   materialStatuses: readonly string[];
   dailyLogCount: number;
+  /** Crew progress updates on work items (they count as daily logging). */
+  workUpdateCount: number;
+  /** Crew work items not yet done or cancelled. */
+  openWorkItems: number;
   vssOutcome: string | null;
   ae202SubmittedAt: Date | null;
   ae202StampedAt: Date | null;
@@ -65,7 +69,8 @@ export function gateFailures(action: EricssonAction, s: SiteSnapshot): string[] 
       break;
     }
     case EricssonAction.COMPLETE_SOW:
-      if (s.dailyLogCount === 0) out.push("Add at least one daily log.");
+      if (s.dailyLogCount === 0 && s.workUpdateCount === 0) out.push("Add at least one daily log or crew work update.");
+      if (s.openWorkItems > 0) out.push(`${plural(s.openWorkItems, "crew work item isn't", "crew work items aren't")} done yet.`);
       break;
     case EricssonAction.RECORD_VSS:
       if (s.ae202StampedAt) out.push("The AE202 is already stamped.");

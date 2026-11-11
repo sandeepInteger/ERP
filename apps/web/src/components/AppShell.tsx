@@ -1,10 +1,18 @@
-import { Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 
+import { Role } from "@erp/types";
 import { PageBackProvider } from "../context/PageBackContext.js";
+import { useMe } from "../context/MeContext.js";
 import { SidebarNav } from "./SidebarNav.js";
 import { TopHeaderBar } from "./TopHeaderBar.js";
 
 export function AppShell() {
+  const me = useMe();
+  const { pathname } = useLocation();
+
+  // Field crew only have the field screens (the API refuses everything else anyway).
+  if (me.role === Role.FIELD_CREW && !pathname.startsWith("/field")) return <Navigate to="/field" replace />;
+
   return (
     <PageBackProvider>
       {/* Phones: the sidebar stacks above the content instead of sitting beside it. */}

@@ -77,7 +77,8 @@ export function SiteForm({
 
   // People of the matching role first, everyone else after, so any user can be assigned.
   function options(role: Role) {
-    const list = users ?? [];
+    // Field crew are assigned separately (Field crew card), never to a team slot.
+    const list = (users ?? []).filter((u) => u.role !== Role.FIELD_CREW);
     return [...list.filter((u) => u.role === role), ...list.filter((u) => u.role !== role)];
   }
 

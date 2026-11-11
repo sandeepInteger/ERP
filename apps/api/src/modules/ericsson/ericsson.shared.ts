@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-import { CR_OPEN_STATUSES, ERICSSON_EDIT_ROLES, type EricssonStep } from "@erp/types";
+import { CR_OPEN_STATUSES, ERICSSON_EDIT_ROLES, Role, WORK_OPEN_STATUSES, type EricssonStep } from "@erp/types";
 import { forbidden, notFound } from "../../lib/http.js";
 import type { SiteSnapshot } from "./ericsson.workflow.js";
 
@@ -9,6 +9,19 @@ type Db = PrismaClient | Prisma.TransactionClient;
 
 export function assertCanEdit(role: string): void {
   if (!ERICSSON_EDIT_ROLES.has(role)) throw forbidden("Your role can view Ericsson sites but not change them");
+}
+
+/**
+ * Field work on a site (daily log, photos, raising a CR): field crew only on sites they're
+ * assigned to; everyone else needs an editing role.
+ */
+export async function assertCanWorkOnSite(app: FastifyInstance, user: { sub: string; role: string }, siteId: string): Promise<void> {
+  if (user.role === Role.FIELD_CREW) {
+    const onCrew = await app.db.ericssonSiteCrew.findUnique({ where: { siteId_userId: { siteId, userId: user.sub } }, select: { siteId: true } });
+    if (!onCrew) throw forbidden("You're not on this site's crew");
+    return;
+  }
+  assertCanEdit(user.role);
 }
 
 export async function assertSite(app: FastifyInstance, siteId: string) {
@@ -33,10 +46,13 @@ export async function loadSnapshot(db: Db, siteId: string): Promise<SiteSnapshot
       materials: { select: { status: true } },
       changeRequests: { select: { status: true } },
       _count: { select: { dailyLogs: true, discrepancies: { where: { isResolved: false } } } },
+      workItems: { select: { status: true, _count: { select: { updates: true } } } },
     },
   });
   if (!site) throw notFound("Site not found");
   return {
+    workUpdateCount: site.workItems.reduce((n, w) => n + w._count.updates, 0),
+    openWorkItems: site.workItems.filter((w) => WORK_OPEN_STATUSES.has(w.status)).length,
     step: site.step as unknown as EricssonStep,
     docTypes: new Set(site.documents.map((d) => d.type)),
     openDiscrepancies: site._count.discrepancies,

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { notFound } from "../../lib/http.js";
 import { assertCanEdit, assertSite, logEvent } from "./ericsson.shared.js";
+import { onDiscrepancyRaised } from "./ericsson.notify.js";
 
 // SOP step 2: line-by-line discrepancies between SOV, BOM and RFDS, and the
 // question thread with the Ericsson PM that resolves them.
@@ -47,6 +48,7 @@ export async function ericssonVerificationRoute(app: FastifyInstance) {
       },
     });
     await logEvent(app.db, id, req.user.sub, "DISCREPANCY_RAISED", `Discrepancy flagged: ${b.item}`);
+    void onDiscrepancyRaised(app, id, b.item, req.user.sub);
     return reply.status(201).send(row);
   });
 

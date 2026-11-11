@@ -8,6 +8,7 @@ import {
 import { day, defined, forbidden, httpError, notFound } from "../../lib/http.js";
 import { PERSON_SELECT, loadSnapshot, logEvent, personName } from "./ericsson.shared.js";
 import { NEXT_STEP, availableActions, gateFailures } from "./ericsson.workflow.js";
+import { onSiteAction } from "./ericsson.notify.js";
 import type { CreateSiteBody, ListSitesQuery, SiteActionBody, UpdateSiteBody } from "./sites.schema.js";
 
 const DAY_MS = 86_400_000;
@@ -80,6 +81,15 @@ export async function getSite(app: FastifyInstance, id: string, viewerRole: stri
       changeRequests: { orderBy: { number: "desc" }, include: { raisedBy: { select: PERSON_SELECT } } },
       dailyLogs: { orderBy: { workDate: "desc" }, include: { author: { select: PERSON_SELECT } } },
       events: { orderBy: { createdAt: "desc" }, take: 100, include: { actor: { select: PERSON_SELECT } } },
+      crew: { include: { user: { select: PERSON_SELECT } }, orderBy: { createdAt: "asc" } },
+      workItems: {
+        where: { status: { not: "CANCELLED" } },
+        orderBy: [{ status: "asc" }, { createdAt: "asc" }],
+        include: {
+          assignee: { select: PERSON_SELECT },
+          updates: { orderBy: { createdAt: "desc" }, take: 5, include: { user: { select: PERSON_SELECT } } },
+        },
+      },
     },
   });
   if (!site) throw notFound("Site not found");
@@ -195,7 +205,7 @@ export async function performAction(app: FastifyInstance, siteId: string, body: 
     throw forbidden(`Your role cannot "${ERICSSON_ACTIONS[body.action].label}"`);
   }
 
-  return app.db.$transaction(async (tx) => {
+  const updated = await app.db.$transaction(async (tx) => {
     // Lock the row so two people clicking at once cannot both pass the gate.
     await tx.$executeRaw`SELECT id FROM ericsson_sites WHERE id = ${siteId} FOR UPDATE`;
     const snapshot = await loadSnapshot(tx, siteId);
@@ -212,6 +222,9 @@ export async function performAction(app: FastifyInstance, siteId: string, body: 
     await logEvent(tx, siteId, actor.id, body.action, actionMessage(body) + moved);
     return site;
   });
+  // After commit; never fails the action.
+  void onSiteAction(app, siteId, body.action, actor.id);
+  return updated;
 }
 
 // ─── Dashboard summary ───────────────────────────────────────────────────────

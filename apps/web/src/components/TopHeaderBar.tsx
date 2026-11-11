@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
 import { usePageBackTarget } from "../context/PageBackContext.js";
+import { NotificationBell } from "./NotificationBell.js";
 import { Button } from "./ui/button.js";
 
 export function TopHeaderBar() {
@@ -16,6 +17,7 @@ export function TopHeaderBar() {
           <ArrowLeft size={14} aria-hidden="true" /> {back.label}
         </Button>
       )}
+      <NotificationBell />
     </div>
   );
 }

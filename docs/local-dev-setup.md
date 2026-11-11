@@ -59,6 +59,44 @@ them under **Developer sign-in**.
 | Hitesh Chaudhary | Coordinator | New sites, documents, discrepancies |
 | Sidhant Sachan | Finance | Read-only; cannot change sites |
 | Test Viewer *(test account)* | Viewer | Read-only |
+| Test Technician One / Two *(test accounts)* | Field crew | Email-code sign-in, field screens of their sites only |
+
+### Field crew sign-in (email code)
+Technicians (role **Field crew**) don't use Microsoft. On the login page they enter their work email under
+**Field crew: sign in with an email code**, receive a 6-digit code by email, and are signed in.
+- A code works once, for 10 minutes, with 5 tries; at most 5 codes per hour per person; requests are rate-limited.
+- Only active users with the Field crew role get codes. Any other email gets the same "if it's set up, a code is on its way"
+  answer and no code, so the form can't be used to discover accounts.
+- Crew see only **their own assigned work** (Field · today), can update it, add photos and raise a CR, for sites they're on.
+  The API refuses everything else (deny-by-default list in `apps/api/src/lib/crew-access.ts`). No money, documents or client details.
+- **Setting someone up:** Admin → Users & roles → add their work email with role **Field crew**; then on each site's
+  Overview tab, tick them under **Field crew**.
+
+### Field engineer (FE) expenses
+Field engineers (role **Field engineer (FE)**, internal key `FIELD_CREW`) add expenses from their phone under **My expenses**,
+any time, against one of their sites.
+- **Fields:** site, expense type (Cable, Equipment, Gas, Gift Card, Guest House Rent, Hotel, Mail/Courier, Office Supplies,
+  Others, Parking, Travel - Air / Car Maintenance / Food / Toll / Rental Car), date, amount, paid with
+  (Corporate credit card or Personal card), optional note, and the **bill / receipt (required)**: photo or PDF.
+- **Approval:** goes to the FE's **manager** (Admin → Users & roles → Manager column). With no manager set, the site's
+  delivery lead, then its PM. The approver works from **Expense approvals**: view the bill, approve, or reject with a reason.
+  Admins and the Ops leader can approve any claim. Nobody approves their own.
+- **Visibility:** until approved, only the FE, the approver, Admin and the Ops leader can see a claim or its bill.
+  **Finance sees it only once approved**; only approved claims count in **Daily tracker & costs** and **Revenue & cost**.
+- **Personal card:** approved personal-card claims show as "To reimburse"; Finance marks them **Reimbursed**
+  (the tracker shows the total still owed to engineers).
+- **Changes:** the FE can withdraw a claim that is waiting or rejected (e.g. to fix and resubmit); approved claims can't be withdrawn.
+- The type list lives in `packages/types/src/ericsson.ts` (`FE_EXPENSE_TYPES`), each mapped to a report category.
+
+### FE work (each field engineer updates their own work)
+- The PM / delivery lead assigns work items on the site's **Crew work** tab: what needs doing, who (one crew member), an optional due date.
+- The crew member signs in and sees their items grouped by site. **Update** lets them set To do / In progress / Done / Blocked,
+  hours worked today, a note and photos. Blocked needs a reason and alerts the PM and delivery lead; Done alerts the delivery lead.
+- Only the assigned person (or a site manager) can update an item; only the PM / delivery lead can cancel or reassign it.
+- **Mark SOW complete** stays blocked until every crew work item is done (or cancelled).
+- Crew don't submit the site's headcount **Daily log**; that remains the delivery lead's site summary.
+- **Email is required in production** (`SMTP_*` in `.env.example`). On local and test servers with `DEV_LOGIN=true` and no
+  SMTP, the code is shown on screen instead so the flow can be tried (e.g. `crew.tech1@example.test`).
 
 Who may do what is defined in `packages/types/src/ericsson.ts` (`ERICSSON_ACTIONS`, from the SOP RACI)
 and enforced by the API. A button you can't use shows "Not your role".
@@ -147,7 +185,25 @@ email must match. Turn `DEV_LOGIN` off anywhere other than your own machine.
 | Materials | BOM lines, orders, status | `POST …/materials`, `PATCH /api/ericsson/materials/:id` |
 | Change requests | Raise, PM review, Ericsson decision, 3% pass-through | `POST …/change-requests`, `POST …/transition` |
 | Daily log | Crew, hours, blockers | `POST …/daily-logs` |
-| Admin | Users & roles, RACI matrix | `/api/users`, `/api/raci` |
+| My work | Each person's next tasks from site state + RACI; leadership escalations | `GET /api/ericsson/my-work` |
+| Daily tracker & costs | Labor / material / travel / vendor cost lines, borrowed resources | `GET /api/ericsson/expenses`, `POST …/expenses` |
+| Revenue & cost | Contract value, billed vs unbilled, margin; bimonthly / MBR / QBR; Excel export | `GET /api/ericsson/reports/revenue-cost` |
+| Site tracker export | Excel with the screen's filters | `GET /api/ericsson/sites/export` |
+| Field (phone) | Today's sites, daily log with camera photos, raise CR | `/field`, `/field/sites/:id/log`, `/field/sites/:id/cr` |
+| FE sign-in | 6-digit email code for field engineers (no password) | `POST /api/auth/otp/*` |
+| FE work | PM assigns FEs to a site and gives them work items; FE updates their own items from the phone | site "FE work" tab, `/field/work/:id`, `/api/field/work-items/*` |
+| FE expenses | 15 expense types, corporate / personal card, bill required; manager approves, then Finance sees it | `/field/expenses`, `/approvals/expenses`, `/api/field/expenses` |
+| Notifications | Bell, workflow events, Appendix C lists, escalation ladder, stand-up digest | `/api/notifications`, `/api/settings/*`, `POST /api/admin/jobs/run` |
+| Admin | Users & roles, RACI matrix (editable; C/I get notified) | `/api/users`, `/api/raci` |
 
-Not built yet: expenses/daily-tracker costs, revenue & cost reports, the phone-first field views,
-notifications/escalation emails, and the AT&T module.
+Scheduled jobs (escalations, stand-up digest, bimonthly report reminder) run inside the API every
+15 minutes; see `JOBS_ENABLED` and `DIGEST_HOUR` in `.env.example`. Email needs the `SMTP_*` settings.
+
+Not built yet: the AT&T module (waiting on the SOP questions), hosting / CI, S3 document storage, PWA install for FEs.
+
+## Working with Claude Code
+`CLAUDE.md` at the repo root is the hand-off for AI agents: decisions, status, repo map and rules. Read it first.
+`.claude/settings.json` adds two hooks (script: `.claude/hooks/handoff-check.mjs`, needs Node on the PATH):
+- **Stop:** if code was changed after `CLAUDE.md` was last saved, Claude must update `CLAUDE.md` before finishing.
+- **SessionStart (after compaction):** reminds Claude to record anything missing in `CLAUDE.md`.
+Review or disable them with `/hooks` in Claude Code.

@@ -156,6 +156,117 @@ export const VSS_OUTCOME_LABELS: Record<VssOutcome, string> = {
   [VssOutcome.FAILED]: "Failed · revisit needed",
 };
 
+export enum WorkItemStatus {
+  TODO = "TODO",
+  IN_PROGRESS = "IN_PROGRESS",
+  DONE = "DONE",
+  BLOCKED = "BLOCKED",
+  CANCELLED = "CANCELLED",
+}
+
+export const WORK_STATUS_LABELS: Record<WorkItemStatus, string> = {
+  [WorkItemStatus.TODO]: "To do",
+  [WorkItemStatus.IN_PROGRESS]: "In progress",
+  [WorkItemStatus.DONE]: "Done",
+  [WorkItemStatus.BLOCKED]: "Blocked",
+  [WorkItemStatus.CANCELLED]: "Cancelled",
+};
+
+/** Statuses a crew member can set on their own work. Cancelling is for the PM / delivery lead. */
+export const CREW_WORK_STATUSES = [WorkItemStatus.TODO, WorkItemStatus.IN_PROGRESS, WorkItemStatus.DONE, WorkItemStatus.BLOCKED] as const;
+
+/** Work still to finish before the SOW can be marked complete. */
+export const WORK_OPEN_STATUSES = new Set<string>([WorkItemStatus.TODO, WorkItemStatus.IN_PROGRESS, WorkItemStatus.BLOCKED]);
+
+export enum ExpenseCategory {
+  LABOR = "LABOR",
+  MATERIAL = "MATERIAL",
+  TRAVEL = "TRAVEL",
+  VENDOR = "VENDOR",
+  OTHER = "OTHER",
+}
+
+export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  [ExpenseCategory.LABOR]: "Labor",
+  [ExpenseCategory.MATERIAL]: "Material",
+  [ExpenseCategory.TRAVEL]: "Travel",
+  [ExpenseCategory.VENDOR]: "Vendor",
+  [ExpenseCategory.OTHER]: "Other",
+};
+
+// ─── Field engineer expense claims ──────────────────────────────────────────
+
+export enum ExpenseStatus {
+  SUBMITTED = "SUBMITTED",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+}
+
+export const EXPENSE_STATUS_LABELS: Record<ExpenseStatus, string> = {
+  [ExpenseStatus.SUBMITTED]: "Waiting for approval",
+  [ExpenseStatus.APPROVED]: "Approved",
+  [ExpenseStatus.REJECTED]: "Rejected",
+};
+
+export enum PaymentMethod {
+  CORPORATE_CARD = "CORPORATE_CARD",
+  PERSONAL_CARD = "PERSONAL_CARD",
+}
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  [PaymentMethod.CORPORATE_CARD]: "Corporate credit card",
+  [PaymentMethod.PERSONAL_CARD]: "Personal card",
+};
+
+/** The expense types an FE can claim, and the report category each one counts under. */
+export const FE_EXPENSE_TYPES = [
+  { key: "CABLE", label: "Cable", category: ExpenseCategory.MATERIAL },
+  { key: "EQUIPMENT", label: "Equipment", category: ExpenseCategory.MATERIAL },
+  { key: "GAS", label: "Gas", category: ExpenseCategory.TRAVEL },
+  { key: "GIFT_CARD", label: "Gift Card", category: ExpenseCategory.OTHER },
+  { key: "GUEST_HOUSE_RENT", label: "Guest House Rent", category: ExpenseCategory.TRAVEL },
+  { key: "HOTEL", label: "Hotel", category: ExpenseCategory.TRAVEL },
+  { key: "MAIL_COURIER", label: "Mail/Courier", category: ExpenseCategory.OTHER },
+  { key: "OFFICE_SUPPLIES", label: "Office Supplies", category: ExpenseCategory.MATERIAL },
+  { key: "OTHERS", label: "Others", category: ExpenseCategory.OTHER },
+  { key: "PARKING", label: "Parking", category: ExpenseCategory.TRAVEL },
+  { key: "TRAVEL_AIR", label: "Travel - Air", category: ExpenseCategory.TRAVEL },
+  { key: "TRAVEL_CAR_MAINTENANCE", label: "Travel - Car Maintenance", category: ExpenseCategory.TRAVEL },
+  { key: "TRAVEL_FOOD", label: "Travel - Food", category: ExpenseCategory.TRAVEL },
+  { key: "TRAVEL_TOLL", label: "Travel - Toll", category: ExpenseCategory.TRAVEL },
+  { key: "TRAVEL_RENTAL_CAR", label: "Travel - Rental Car", category: ExpenseCategory.TRAVEL },
+] as const;
+
+export type FeExpenseType = (typeof FE_EXPENSE_TYPES)[number]["key"];
+
+export const FE_EXPENSE_TYPE_LABELS: Record<string, string> = Object.fromEntries(FE_EXPENSE_TYPES.map((t) => [t.key, t.label]));
+
+/** Roles that can approve any FE's expense claims (as well as the FE's own manager). */
+export const EXPENSE_APPROVER_OVERRIDE_ROLES = new Set<string>([Role.ADMIN, Role.OPS_LEADER]);
+
+// ─── Distribution lists (SOP Appendix C) ────────────────────────────────────
+
+export enum EricssonList {
+  DELIVERY_STATUS = "DELIVERY_STATUS",
+  DAILY_STANDUP = "DAILY_STANDUP",
+  REVENUE_COST_REPORT = "REVENUE_COST_REPORT",
+  SOV_RFX_ACCEPTANCE = "SOV_RFX_ACCEPTANCE",
+  SITE_INVOICING = "SITE_INVOICING",
+  VENDOR_ONBOARDING = "VENDOR_ONBOARDING",
+  VENDOR_INVOICING = "VENDOR_INVOICING",
+}
+
+/** What the app sends to each list. Shown on the admin screen so the wiring is not a mystery. */
+export const ERICSSON_LIST_TRIGGERS: Record<EricssonList, string> = {
+  [EricssonList.DELIVERY_STATUS]: "When a site's SOW is complete, and when a site is closed",
+  [EricssonList.DAILY_STANDUP]: "Each weekday morning: a digest of active sites and overdue work",
+  [EricssonList.REVENUE_COST_REPORT]: "On the 1st and 16th: the revenue & cost report for the period just ended",
+  [EricssonList.SOV_RFX_ACCEPTANCE]: "When a site's SOV is accepted and when its RFX is recorded",
+  [EricssonList.SITE_INVOICING]: "When a site is ready to invoice (AE202 stamped) and when a CR is approved",
+  [EricssonList.VENDOR_ONBOARDING]: "When a sub-vendor change request is raised",
+  [EricssonList.VENDOR_INVOICING]: "When a sub-vendor change request is approved",
+};
+
 // ─── Site actions and who may perform them ──────────────────────────────────
 // From SOP Appendix B (RACI): the Responsible role(s) for each task. Leadership
 // (Admin, Ops leader) can always act. Enforced by the API, used by the web app
@@ -196,7 +307,27 @@ export const ERICSSON_ACTIONS: Record<EricssonAction, { step: EricssonStep; labe
   [EricssonAction.CLOSE_SITE]: { step: EricssonStep.INVOICING, label: "Close site", roles: [PM] },
 };
 
-const ALWAYS_ACT = new Set<string>([Role.ADMIN, Role.OPS_LEADER]);
+/**
+ * The RACI task (raci_rules.taskKey) each workflow action belongs to. When the action happens,
+ * that task's Consulted and Informed roles are notified.
+ */
+export const ERICSSON_ACTION_RACI_TASK: Record<EricssonAction, string> = {
+  [EricssonAction.SUBMIT_FOR_VERIFICATION]: "RECEIVE_DOCS",
+  [EricssonAction.ACCEPT_SOV]: "REVIEW_SOV",
+  [EricssonAction.REQUEST_RFX]: "SOV_HANDSHAKE",
+  [EricssonAction.RECORD_RFX]: "ACCEPT_RFX_ORDER",
+  [EricssonAction.START_EXECUTION]: "ACCEPT_RFX_ORDER",
+  [EricssonAction.COMPLETE_SOW]: "COMPLETE_SOW",
+  [EricssonAction.RECORD_VSS]: "VSS_AE202",
+  [EricssonAction.SUBMIT_AE202]: "VSS_AE202",
+  [EricssonAction.STAMP_AE202]: "VSS_AE202",
+  [EricssonAction.UPLOAD_INVOICE]: "UPLOAD_INVOICE",
+  [EricssonAction.APPROVE_INVOICE]: "UPLOAD_INVOICE",
+  [EricssonAction.CLOSE_SITE]: "UPLOAD_INVOICE",
+};
+
+/** Can perform every workflow action, whatever the matrix says. */
+export const ALWAYS_ACT = new Set<string>([Role.ADMIN, Role.OPS_LEADER]);
 
 export function canPerformEricssonAction(role: string, action: EricssonAction): boolean {
   return ALWAYS_ACT.has(role) || (ERICSSON_ACTIONS[action].roles as string[]).includes(role);
@@ -204,6 +335,14 @@ export function canPerformEricssonAction(role: string, action: EricssonAction): 
 
 /** Roles that can create and edit sites, discrepancies, materials, logs and CRs. */
 export const ERICSSON_EDIT_ROLES = new Set<string>([Role.ADMIN, Role.OPS_LEADER, PM, APM, DL, PC]);
+
+/** Roles that can record costs in the daily tracker: the delivery team plus Finance. */
+export const ERICSSON_EXPENSE_ROLES = new Set<string>([...ERICSSON_EDIT_ROLES, Role.FINANCE]);
+
+/** Roles that see money: SOV values, costs, margins and the revenue / cost reports. */
+export const ERICSSON_FINANCE_VIEW_ROLES = new Set<string>([
+  Role.ADMIN, Role.SALES_LEADER, Role.OPS_LEADER, Role.PROJECT_MANAGER, Role.ASSOCIATE_PM, Role.FINANCE,
+]);
 
 /** Roles that can approve or reject CRs at PM review and record Ericsson's decision. */
 export const ERICSSON_CR_DECIDE_ROLES = new Set<string>([Role.ADMIN, Role.OPS_LEADER, PM]);

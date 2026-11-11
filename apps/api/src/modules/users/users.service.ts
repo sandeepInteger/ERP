@@ -13,7 +13,15 @@ export const USER_SELECT = {
   role: true,
   isActive: true,
   lastLoginAt: true,
+  managerId: true,
 } as const;
+
+async function assertManager(app: FastifyInstance, managerId: string | null | undefined, userId?: string) {
+  if (!managerId) return;
+  if (managerId === userId) throw httpError(400, "Someone can't be their own manager");
+  const m = await app.db.user.findUnique({ where: { id: managerId }, select: { isActive: true, role: true } });
+  if (!m?.isActive || m.role === "FIELD_CREW" || m.role === "VIEWER") throw httpError(400, "The manager must be an active staff user");
+}
 
 export async function listUsers(app: FastifyInstance, includeInactive: boolean) {
   return app.db.user.findMany({
@@ -24,6 +32,7 @@ export async function listUsers(app: FastifyInstance, includeInactive: boolean) 
 }
 
 export async function createUser(app: FastifyInstance, body: CreateUserBody) {
+  await assertManager(app, body.managerId);
   try {
     return await app.db.user.create({
       data: { ...defined(body), email: body.email, firstName: body.firstName, lastName: body.lastName, role: body.role as DbRole },
@@ -43,6 +52,7 @@ export async function updateUser(app: FastifyInstance, id: string, body: UpdateU
   if (id === actorId && (body.isActive === false || (body.role && body.role !== existing.role))) {
     throw httpError(400, "You cannot change your own role or deactivate yourself");
   }
+  await assertManager(app, body.managerId, id);
 
   // A role change or deactivation must take effect now, not when the 8h token expires.
   const revoke = (body.role !== undefined && body.role !== existing.role) || (body.isActive === false && existing.isActive);
@@ -50,7 +60,7 @@ export async function updateUser(app: FastifyInstance, id: string, body: UpdateU
   const user = await app.db.user.update({
     where: { id },
     data: {
-      ...defined({ firstName: body.firstName, lastName: body.lastName, designation: body.designation, isActive: body.isActive }),
+      ...defined({ firstName: body.firstName, lastName: body.lastName, designation: body.designation, isActive: body.isActive, managerId: body.managerId }),
       ...(body.role ? { role: body.role as DbRole } : {}),
       ...(revoke ? { tokenVersion: { increment: 1 } } : {}),
     },

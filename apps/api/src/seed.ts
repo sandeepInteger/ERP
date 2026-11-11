@@ -54,9 +54,47 @@ async function seedRaci() {
   console.log(`raci rules (Ericsson): ${ERICSSON_RACI.length}`);
 }
 
+// SOP Appendix C. Recipients are seeded once; after that, admins own them (re-seeding keeps their edits).
+const ERICSSON_LISTS: { key: string; name: string; frequency: string; description: string; recipients: string[] }[] = [
+  { key: "DELIVERY_STATUS", name: "Delivery status update", frequency: "As site/scope is completed", description: "", recipients: ["vidhya@integertel.com", "ashish@integertel.com"] },
+  { key: "DAILY_STANDUP", name: "Daily stand-up call", frequency: "Daily", description: "", recipients: ["chris.lembo@integertel.com", "vidhya@integertel.com", "jaspreet@integertel.com", "ashish@integertel.com", "hitesh.chaudhary@integertel.com"] },
+  { key: "REVENUE_COST_REPORT", name: "Bimonthly revenue / cost report", frequency: "Bimonthly", description: "", recipients: ["siddhant@integertel.com"] },
+  { key: "SOV_RFX_ACCEPTANCE", name: "SOV / RFX acceptance", frequency: "As per assignment", description: "", recipients: ["jaspreet@integertel.com"] },
+  { key: "SITE_INVOICING", name: "Site PO / CR / material invoicing", frequency: "As site/scope is completed", description: "", recipients: ["jaspreet@integertel.com"] },
+  { key: "VENDOR_ONBOARDING", name: "Vendor onboarding", frequency: "As per assignment", description: "", recipients: ["vidhya@integertel.com"] },
+  // The SOP names Narsimha Rao / Aniket Gupta here, with no email: an admin adds them under Notifications.
+  { key: "VENDOR_INVOICING", name: "Vendor invoicing", frequency: "As site/scope is completed", description: "SOP: Narsimha Rao / Aniket Gupta (add their emails)", recipients: [] },
+];
+
+// Escalation ladder. The SOP lists the Sales leader as both 2nd and 3rd level; this default
+// uses PM → Ops leader → Sales leader until the business confirms. Admins can change it.
+const ERICSSON_ESCALATION = [
+  { level: 1, afterDays: 3, roles: ["PROJECT_MANAGER"] as Role[] },
+  { level: 2, afterDays: 5, roles: ["OPS_LEADER"] as Role[] },
+  { level: 3, afterDays: 8, roles: ["SALES_LEADER"] as Role[] },
+];
+
+async function seedNotifications() {
+  const users = await db.user.findMany({ select: { id: true, email: true } });
+  const idOf = new Map(users.map((u) => [u.email.toLowerCase(), u.id]));
+  for (const [i, l] of ERICSSON_LISTS.entries()) {
+    const meta = { name: l.name, frequency: l.frequency, description: l.description, rank: i + 1 };
+    await db.distributionList.upsert({
+      where: { client_key: { client: "ERICSSON", key: l.key } },
+      update: meta,
+      create: { client: "ERICSSON", key: l.key, ...meta, userIds: l.recipients.map((e) => idOf.get(e)).filter((x): x is string => Boolean(x)), emails: [] },
+    });
+  }
+  if ((await db.escalationRule.count({ where: { client: "ERICSSON" } })) === 0) {
+    await db.escalationRule.createMany({ data: ERICSSON_ESCALATION.map((r) => ({ client: "ERICSSON", ...r })) });
+  }
+  console.log(`distribution lists (Ericsson): ${ERICSSON_LISTS.length}, escalation levels: ${ERICSSON_ESCALATION.length}`);
+}
+
 try {
   await seedUsers();
   await seedRaci();
+  await seedNotifications();
   if (process.env["SEED_RESET_DEMO"] === "true") console.log(`sample sites removed: ${await resetDemo(db)}`);
   if (process.env["SEED_DEMO"] === "true") console.log(`sample sites added: ${await seedDemo(db)} (existing ones kept)`);
 } finally {

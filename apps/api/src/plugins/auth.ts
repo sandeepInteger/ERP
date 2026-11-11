@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { fastifyPlugin } from "fastify-plugin";
 
-import type { Role } from "@erp/types";
+import { Role } from "@erp/types";
+import { crewMayCall } from "../lib/crew-access.js";
 
 export interface JwtPayload {
   sub: string;
@@ -41,6 +42,11 @@ async function plugin(app: FastifyInstance) {
     });
     if (!user || !user.isActive || user.tokenVersion !== req.user.tokenVersion) {
       await reply.status(401).send({ error: "Unauthorized" });
+      return;
+    }
+    // Field crew: deny by default, allow only the field screens' routes.
+    if (user.role === Role.FIELD_CREW && !crewMayCall(req.method, req.routeOptions.url)) {
+      await reply.status(403).send({ error: "Field crew can only use the field screens" });
       return;
     }
   });

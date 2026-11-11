@@ -20,6 +20,7 @@ enum Role {
   COORDINATOR
   FINANCE
   VIEWER
+  FIELD_CREW
 }
 
 enum EricssonStep {
@@ -84,6 +85,35 @@ enum VssOutcome {
   FAILED
 }
 
+enum WorkItemStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  BLOCKED
+  CANCELLED
+}
+
+// A cost line entered by staff is APPROVED straight away; a field engineer's claim starts
+// SUBMITTED and only counts (and is visible to Finance) once their manager approves it.
+enum ExpenseStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum PaymentMethod {
+  CORPORATE_CARD
+  PERSONAL_CARD
+}
+
+enum ExpenseCategory {
+  LABOR
+  MATERIAL
+  TRAVEL
+  VENDOR
+  OTHER
+}
+
 // ─── Users, sessions, audit ──────────────────────────────────────────────────
 // People sign in with Microsoft. There is no auto-provisioning: an admin adds the
 // user first (email + role), then their first Microsoft sign-in links the account.
@@ -97,6 +127,8 @@ model User {
   role             Role
   isActive         Boolean   @default(true)
   azureOid         String?   @unique
+  /// Line manager: approves this person's expense claims.
+  managerId        String?
   tokenVersion     Int       @default(0)
   refreshTokenHash String?
   lastLoginAt      DateTime?
@@ -105,6 +137,8 @@ model User {
 
   sessions  UserSession[]
   auditLogs AuditLog[]
+  manager   User?         @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
+  reports   User[]        @relation("UserManager")
 
   ericssonSitesAsPm           EricssonSite[]          @relation("SitePm")
   ericssonSitesAsApm          EricssonSite[]          @relation("SiteApm")
@@ -119,6 +153,15 @@ model User {
   ericssonCrsReviewed         EricssonChangeRequest[] @relation("CrReviewedBy")
   ericssonDailyLogs           EricssonDailyLog[]
   ericssonSiteEvents          EricssonSiteEvent[]
+  ericssonExpenses            EricssonExpense[]
+  ericssonExpensesToApprove   EricssonExpense[]       @relation("ExpenseApprover")
+  ericssonExpensesDecided     EricssonExpense[]       @relation("ExpenseDecidedBy")
+  notifications               Notification[]
+  loginCodes                  LoginCode[]
+  ericssonCrewSites           EricssonSiteCrew[]
+  ericssonWorkAssigned        EricssonWorkItem[]      @relation("WorkAssignee")
+  ericssonWorkCreated         EricssonWorkItem[]      @relation("WorkCreatedBy")
+  ericssonWorkUpdates         EricssonWorkUpdate[]
 
   @@map("users")
 }
@@ -137,6 +180,24 @@ model UserSession {
 
   @@index([userId])
   @@map("user_sessions")
+}
+
+// Email one-time sign-in codes (field crew). Only a hash is stored; a code works once,
+// for 10 minutes, with at most 5 wrong tries.
+model LoginCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  ip        String
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("login_codes")
 }
 
 model AuditLog {
@@ -174,6 +235,61 @@ model RaciRule {
 
   @@unique([client, taskKey])
   @@map("raci_rules")
+}
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+// In-app notification (the bell). Emailed too when SMTP is configured.
+// dedupeKey stops scheduled jobs (escalations, digests) notifying twice for the same thing.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String?
+  link      String?
+  siteId    String?
+  dedupeKey String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+// SOP Appendix C distribution lists: who hears about which event. Edited by admins.
+model DistributionList {
+  id          String   @id @default(cuid())
+  client      String
+  key         String
+  name        String
+  frequency   String
+  description String
+  rank        Int
+  /// Users who get it in the app (and by email).
+  userIds     String[]
+  /// Extra email-only recipients (people without an ERP login, e.g. vendor invoicing).
+  emails      String[]
+  updatedAt   DateTime @updatedAt
+
+  @@unique([client, key])
+  @@map("distribution_lists")
+}
+
+// Escalation ladder: when a task has been overdue this many days, these roles are told.
+model EscalationRule {
+  id        String   @id @default(cuid())
+  client    String
+  level     Int
+  afterDays Int
+  roles     Role[]
+  updatedAt DateTime @updatedAt
+
+  @@unique([client, level])
+  @@map("escalation_rules")
 }
 
 // ─── Ericsson IBS ────────────────────────────────────────────────────────────
@@ -246,6 +362,9 @@ model EricssonSite {
   changeRequests EricssonChangeRequest[]
   dailyLogs      EricssonDailyLog[]
   events         EricssonSiteEvent[]
+  expenses       EricssonExpense[]
+  crew           EricssonSiteCrew[]
+  workItems      EricssonWorkItem[]
 
   @@index([step])
   @@map("ericsson_sites")
@@ -384,6 +503,108 @@ model EricssonDailyLog {
 
   @@index([siteId, workDate])
   @@map("ericsson_daily_logs")
+}
+
+// Field crew assigned to a site. Crew users only ever see the sites they are on.
+model EricssonSiteCrew {
+  siteId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  site EricssonSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([siteId, userId])
+  @@index([userId])
+  @@map("ericsson_site_crew")
+}
+
+// A piece of site work assigned to one field crew member (e.g. "Mount antennas, level 2").
+// The crew member updates it themselves; status mirrors their latest update.
+model EricssonWorkItem {
+  id          String         @id @default(cuid())
+  siteId      String
+  title       String
+  description String?
+  assigneeId  String
+  status      WorkItemStatus @default(TODO)
+  dueDate     DateTime?      @db.Date
+  createdById String
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  site      EricssonSite         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  assignee  User                 @relation("WorkAssignee", fields: [assigneeId], references: [id])
+  createdBy User                 @relation("WorkCreatedBy", fields: [createdById], references: [id])
+  updates   EricssonWorkUpdate[]
+
+  @@index([siteId])
+  @@index([assigneeId, status])
+  @@map("ericsson_work_items")
+}
+
+// One progress update by the person doing the work: hours that day, new status, a note.
+model EricssonWorkUpdate {
+  id         String         @id @default(cuid())
+  workItemId String
+  userId     String
+  workDate   DateTime       @db.Date
+  hours      Decimal        @db.Decimal(4, 1)
+  status     WorkItemStatus
+  note       String?
+  photoCount Int            @default(0)
+  createdAt  DateTime       @default(now())
+
+  workItem EricssonWorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id])
+
+  @@index([workItemId, createdAt])
+  @@index([userId, workDate])
+  @@map("ericsson_work_updates")
+}
+
+// The daily tracker's cost lines (SOP: "update and maintain tracker … expenses (labor,
+// material, travel) including time of non-assigned resources used"). Feeds the cost reports.
+model EricssonExpense {
+  id          String          @id @default(cuid())
+  siteId      String
+  workDate    DateTime        @db.Date
+  category    ExpenseCategory
+  description String
+  /// Who did the work or was paid (free text: a crew, a vendor, a person).
+  personName  String?
+  /// False = a resource borrowed from outside the site's assigned team.
+  assigned    Boolean         @default(true)
+  hours       Decimal?        @db.Decimal(6, 1)
+  amount      Decimal         @db.Decimal(12, 2)
+  createdById String
+  createdAt   DateTime        @default(now())
+
+  // ── Field engineer expense claims (status SUBMITTED until the manager decides) ──
+  status          ExpenseStatus  @default(APPROVED)
+  /// Claim type key (e.g. TRAVEL_TOLL); see FE_EXPENSE_TYPES in @erp/types.
+  claimType       String?
+  paymentMethod   PaymentMethod?
+  receiptKey      String?
+  receiptName     String?
+  receiptMime     String?
+  approverId      String?
+  decidedById     String?
+  decidedAt       DateTime?
+  rejectionReason String?
+  reimbursedAt    DateTime?
+
+  site      EricssonSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  createdBy User         @relation(fields: [createdById], references: [id])
+  approver  User?        @relation("ExpenseApprover", fields: [approverId], references: [id])
+  decidedBy User?        @relation("ExpenseDecidedBy", fields: [decidedById], references: [id])
+
+  @@index([siteId, workDate])
+  @@index([workDate])
+  @@index([status, approverId])
+  @@index([createdById, status])
+  @@map("ericsson_expenses")
 }
 
 // Human-readable activity trail shown on the site page.
