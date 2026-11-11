@@ -7,3 +7,8 @@
 *.jpg binary
 *.ico binary
 *.woff2 binary
+
+# Windows scripts need CRLF (e.g. apps/mobile/android/gradlew.bat).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.jar binary
