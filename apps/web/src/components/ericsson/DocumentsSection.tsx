@@ -80,7 +80,7 @@ export function DocumentsSection({
 
       <Card className="overflow-hidden">
         <TableScroll>
-          <Table>
+          <Table stack>
             <TableHeader>
               <TableRow>
                 <TableHead>Document</TableHead>

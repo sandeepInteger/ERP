@@ -105,7 +105,7 @@ export default function SitesPage() {
 
       <Card className="overflow-hidden">
         <TableScroll>
-          <Table>
+          <Table stack>
             <TableHeader>
               <TableRow>
                 <TableHead>Site</TableHead>

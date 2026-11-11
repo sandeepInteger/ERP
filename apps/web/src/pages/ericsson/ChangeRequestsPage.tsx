@@ -48,7 +48,7 @@ export default function ChangeRequestsPage() {
       <FormError message={error} />
       <Card className="overflow-hidden">
         <TableScroll>
-          <Table>
+          <Table stack>
             <TableHeader>
               <TableRow>
                 <TableHead>CR</TableHead>
@@ -71,7 +71,7 @@ export default function ChangeRequestsPage() {
                     {c.site && <Link className="font-semibold text-brand-600 hover:underline" to={`/ericsson/sites/${c.site.id}?tab=crs`}>{c.site.siteCode}</Link>}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">{CR_TYPE_LABELS[c.type as ChangeRequestType]}</TableCell>
-                  <TableCell className="min-w-56">{c.title}</TableCell>
+                  <TableCell className="min-w-48">{c.title}</TableCell>
                   <TableCell className="whitespace-nowrap text-right tabular-nums">{money(c.total, true)}</TableCell>
                   <TableCell><Badge tone={crTone(c.status)}>{CR_STATUS_LABELS[c.status]}</Badge></TableCell>
                   <TableCell className="whitespace-nowrap">{date(c.createdAt)}<div className="text-xs text-surface-500">{fullName(c.raisedBy)}</div></TableCell>

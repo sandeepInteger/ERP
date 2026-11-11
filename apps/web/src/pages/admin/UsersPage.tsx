@@ -94,7 +94,7 @@ export default function UsersPage() {
       <FormError message={error} />
       <Card className="overflow-hidden">
         <TableScroll>
-          <Table>
+          <Table stack>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Manager</TableHead>
@@ -106,7 +106,7 @@ export default function UsersPage() {
               {data?.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="font-semibold">{u.firstName} {u.lastName}{u.designation && <div className="text-xs font-normal text-surface-500">{u.designation}</div>}</TableCell>
-                  <TableCell>{u.email}</TableCell>
+                  <TableCell className="wrap-anywhere">{u.email}</TableCell>
                   <TableCell>
                     <SelectField aria-label={`Role of ${u.firstName}`} className="h-8 w-48" value={u.role} disabled={u.id === me.id} onChange={(e) => void update(u, { role: e.target.value as Role })}>
                       {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}

@@ -76,7 +76,7 @@ export function SidebarNav() {
   }
 
   return (
-    <aside className="flex w-full shrink-0 flex-col gap-5 border-b border-surface-200 bg-surface-0 p-3 md:w-60 md:border-r md:border-b-0 md:p-4">
+    <aside className="flex w-full shrink-0 flex-col gap-5 border-b border-surface-200 bg-surface-0 p-3 lg:w-60 lg:border-r lg:border-b-0 lg:p-4">
       <div className="flex items-center gap-2.5 px-2">
         <div className="flex size-9 items-center justify-center rounded-lg bg-brand-600 text-base font-bold text-white" aria-hidden="true">I</div>
         <div className="flex-1">
@@ -89,13 +89,13 @@ export function SidebarNav() {
           aria-expanded={open}
           aria-controls="main-menu"
           aria-label={open ? "Close menu" : "Open menu"}
-          className="flex size-11 cursor-pointer items-center justify-center rounded-md text-surface-700 hover:bg-surface-100 md:hidden"
+          className="flex size-11 cursor-pointer items-center justify-center rounded-md text-surface-700 hover:bg-surface-100 lg:hidden"
         >
           {open ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
         </button>
       </div>
 
-      <nav id="main-menu" aria-label="Main" className={cn("flex-col gap-4 md:flex", open ? "flex" : "hidden")}>
+      <nav id="main-menu" aria-label="Main" className={cn("flex-col gap-4 lg:flex", open ? "flex" : "hidden")}>
         {NAV.map((group) => {
           const isCrew = me.role === Role.FIELD_CREW;
           const items = group.items.filter((i) => (isCrew ? i.crew === true : !i.when || i.when(me.role)));
@@ -124,7 +124,7 @@ export function SidebarNav() {
         })}
       </nav>
 
-      <div className={cn("mt-auto items-center gap-2 rounded-lg bg-surface-50 p-3 md:flex", open ? "flex" : "hidden")}>
+      <div className={cn("mt-auto items-center gap-2 rounded-lg bg-surface-50 p-3 lg:flex", open ? "flex" : "hidden")}>
         <ShieldCheck size={16} className="shrink-0 text-surface-500" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold">{me.firstName} {me.lastName}</div>

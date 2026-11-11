@@ -137,6 +137,12 @@ Admin `niranjan.tamhane@integertel.com` · PM `vidhya@integertel.com` · APM `ja
 - Never a raw `<input>`, `<select>`, `<textarea>`, `<table>`, checkbox or status `<span>`: use `Input`, `SelectField`, `Textarea`, `Table*`, `Checkbox`, `Badge`.
 - Buttons that call a mutating API use `AsyncButton`; its `onClick` returns the promise and rethrows on failure.
 - A Back button that leaves the page goes in the top bar via `usePageBack()`.
+- Responsive (phone 390 / tablet 820 / iPad landscape 1024 / desktop 1440 must all work, no page-level sideways scroll):
+  sidebar sits beside content only at `lg` (≥1024), below that it folds into the menu button. List tables use
+  `<Table stack>`: below `xl` (1280) rows become labelled cards (1 column phone, 2 columns from `md`); labels come from
+  the `<thead>` automatically, the first column is the card title, sr-only headers (Actions) get no label. Long
+  unbreakable text (emails) needs `wrap-anywhere`. Touch sizing via `pointer-coarse:` (≥44px rows/targets).
+  Tabs swipe sideways on phones. Audit script used: open every route at those widths and check `scrollWidth`.
 - Light/dark: colours come only from tokens in `styles/tokens.css`; dark values live under `:root[data-theme="dark"]`.
   `index.html` sets `data-theme` before first paint (saved choice in localStorage `erp-theme`, else OS); the top-bar
   ThemeToggle switches it. Never hard-code colours, or they won't switch.

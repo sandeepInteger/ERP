@@ -165,7 +165,7 @@ export function ExpensesTable({ data, showSite, onChanged }: { data: ExpenseList
   return (
     <Card className="overflow-hidden">
       <TableScroll>
-        <Table>
+        <Table stack>
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>

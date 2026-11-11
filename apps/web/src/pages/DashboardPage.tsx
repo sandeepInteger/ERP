@@ -48,12 +48,12 @@ export default function DashboardPage() {
             <CardTitle>Sites by workflow step</CardTitle>
             <CardDescription>Ericsson SOP steps 1–9</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+          <CardContent className="flex flex-col gap-3 pointer-coarse:gap-0">
             {steps.map((st) => (
               <Link
                 key={st}
                 to={`/ericsson/sites?step=${st}`}
-                className="grid grid-cols-[minmax(0,11rem)_1fr_2rem] items-center gap-3 rounded-md px-1 py-0.5 text-sm hover:bg-surface-50"
+                className="grid grid-cols-[minmax(0,11rem)_1fr_2rem] items-center gap-3 rounded-md px-1 py-0.5 text-sm hover:bg-surface-50 pointer-coarse:min-h-11"
               >
                 <span className="truncate">{ERICSSON_STEPS[st].sop} · {ERICSSON_STEPS[st].short}</span>
                 <Progress value={s ? (s.counts[st] / max) * 100 : 0} label={ERICSSON_STEPS[st].label} />

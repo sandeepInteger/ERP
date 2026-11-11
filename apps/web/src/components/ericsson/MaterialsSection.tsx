@@ -63,7 +63,7 @@ export function MaterialsSection({
         <CardDescription>Work can start once every line is Ericsson-supplied, in stock or received.</CardDescription>
       </CardHeader>
       <TableScroll>
-        <Table>
+        <Table stack>
           <TableHeader>
             <TableRow>
               <TableHead>Item</TableHead><TableHead>BOM qty</TableHead><TableHead>Ericsson supplies</TableHead><TableHead>To order</TableHead>

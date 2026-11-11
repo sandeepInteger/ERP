@@ -7,8 +7,8 @@ export function Checkbox({
   label, className, ...props
 }: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> & { label: React.ReactNode }) {
   return (
-    <label className={cn("flex min-h-9 cursor-pointer items-center gap-2 text-sm", className)}>
-      <input type="checkbox" className="size-4 cursor-pointer accent-[var(--color-brand-600)]" {...props} />
+    <label className={cn("flex min-h-9 cursor-pointer items-center gap-2 text-sm pointer-coarse:min-h-11 pointer-coarse:gap-3", className)}>
+      <input type="checkbox" className="size-4 cursor-pointer accent-[var(--color-brand-600)] pointer-coarse:size-5" {...props} />
       {label}
     </label>
   );

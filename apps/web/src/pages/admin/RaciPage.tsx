@@ -89,7 +89,7 @@ export default function RaciPage() {
       <FormError message={error} />
       <Card className="overflow-hidden">
         <TableScroll>
-          <Table>
+          <Table stack>
             <TableHeader>
               <TableRow>
                 <TableHead>Task</TableHead>
@@ -130,7 +130,7 @@ export default function RaciPage() {
           </CardDescription>
         </CardHeader>
         <TableScroll>
-          <Table>
+          <Table stack>
             <TableHeader>
               <TableRow><TableHead>Step</TableHead><TableHead>Button</TableHead><TableHead>Roles</TableHead></TableRow>
             </TableHeader>

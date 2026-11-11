@@ -90,7 +90,7 @@ function StaffToday() {
               </Link>
             ))}
           </Card>
-          <Link to="/my-work" className="text-sm font-semibold text-brand-600">All my work →</Link>
+          <Link to="/my-work" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand-600">All my work →</Link>
         </section>
       )}
     </div>

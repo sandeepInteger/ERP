@@ -130,7 +130,7 @@ export default function ReportsPage() {
         <CardContent className="flex flex-col gap-3">
           {data?.sites.filter((s) => s.contractValue > 0 || s.cost > 0).map((s) => (
             <div key={s.id} className="grid grid-cols-[6.5rem_1fr_4rem] items-center gap-3 text-[13px]">
-              <Link to={`/ericsson/sites/${s.id}?tab=costs`} className="font-semibold text-brand-600 hover:underline">{s.siteCode}</Link>
+              <Link to={`/ericsson/sites/${s.id}?tab=costs`} className="font-semibold text-brand-600 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-10 pointer-coarse:items-center">{s.siteCode}</Link>
               <div className="flex flex-col gap-1">
                 <Progress value={(s.contractValue / max) * 100} label={`${s.siteCode} contract value`} className="h-2" />
                 <Progress value={(s.cost / max) * 100} tone="warning" label={`${s.siteCode} cost`} className="h-2" />
@@ -143,7 +143,7 @@ export default function ReportsPage() {
 
       <Card className="overflow-hidden">
         <TableScroll>
-          <Table>
+          <Table stack>
             <TableHeader>
               <TableRow>
                 <TableHead>Site</TableHead><TableHead>Step</TableHead><TableHead>Billing</TableHead>

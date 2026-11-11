@@ -115,7 +115,7 @@ export function VerificationSection({
           <CardDescription>Flag every line where the three documents disagree. The SOV can't be accepted while any are open.</CardDescription>
         </CardHeader>
         <TableScroll>
-          <Table>
+          <Table stack>
             <TableHeader>
               <TableRow>
                 <TableHead>Item</TableHead><TableHead>SOV</TableHead><TableHead>BOM</TableHead><TableHead>RFDS</TableHead>
