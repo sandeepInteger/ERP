@@ -25,7 +25,9 @@ Architecture, folder layout and conventions mirror the HRMS project at `C:\Integ
 ## 2. Status (as of 2026-11-11)
 **Git:** `main` = commit `6c4cf7c` "Foundation and Ericsson IBS core" (pushed; remote moved to
 `https://github.com/Integer-Telecom-Inc/Integer-ERP-System.git`, local `origin` still points at the old `IntergerDevs` URL which redirects).
-**Everything in sections 3.6–3.13 below is UNCOMMITTED** (≈86 changed/new files). Ask before committing; push to a review branch, not `main`.
+Features 3.6–3.13 + hand-off hooks are committed as `2e6bfbb` on branch **`feature/ericsson-fe-and-ops`** (pushed,
+not yet merged to `main`; PR: https://github.com/Integer-Telecom-Inc/Integer-ERP-System/pull/new/feature/ericsson-fe-and-ops).
+Ask before committing; push to a review branch, not `main`.
 
 **Built (Ericsson IBS module):**
 | # | Feature | Where (web route) |
