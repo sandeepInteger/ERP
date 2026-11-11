@@ -78,10 +78,10 @@ apps/api/                 Fastify API (@erp/api)
 apps/web/                 React SPA (@erp/web)
   src/App.tsx             all routes
   src/components/ui/      primitives (Button, AsyncButton, Badge, Card, Input/Textarea/SelectField, Table, Tabs/Chips, Checkbox, Field, Progress)
-  src/components/         AppShell, SidebarNav (role-filtered menu), TopHeaderBar (+ NotificationBell), EmailCodeLogin, SummaryStatCard, PageHeader
+  src/components/         AppShell, SidebarNav (role-filtered menu), TopHeaderBar (+ ThemeToggle, NotificationBell), EmailCodeLogin, SummaryStatCard, PageHeader
   src/components/ericsson/ site-page sections and forms
   src/pages/              Dashboard, Login, ExpenseApprovals, admin/*, ericsson/*, field/* (phone-first)
-  src/lib/                api (axios + token refresh), ericsson (response types, tones), format, download (downloadFile/viewFile)
+  src/lib/                api (axios + token refresh), ericsson (response types, tones), format, download (downloadFile/viewFile), theme (light/dark)
 packages/types/src/       roles.ts (Role, labels, role sets) · ericsson.ts (steps, actions+roles, statuses, labels, FE expense types, lists)
 .claude/settings.json + .claude/hooks/handoff-check.mjs   hooks that keep this file current (see §10)
 tools/e2e/ericsson-flow.mjs   end-to-end API check (102 checks); needs DEV_LOGIN + seeded users
@@ -137,6 +137,9 @@ Admin `niranjan.tamhane@integertel.com` · PM `vidhya@integertel.com` · APM `ja
 - Never a raw `<input>`, `<select>`, `<textarea>`, `<table>`, checkbox or status `<span>`: use `Input`, `SelectField`, `Textarea`, `Table*`, `Checkbox`, `Badge`.
 - Buttons that call a mutating API use `AsyncButton`; its `onClick` returns the promise and rethrows on failure.
 - A Back button that leaves the page goes in the top bar via `usePageBack()`.
+- Light/dark: colours come only from tokens in `styles/tokens.css`; dark values live under `:root[data-theme="dark"]`.
+  `index.html` sets `data-theme` before first paint (saved choice in localStorage `erp-theme`, else OS); the top-bar
+  ThemeToggle switches it. Never hard-code colours, or they won't switch.
 - Field (`/field/*`) screens are phone-first: max-w-xl column, ≥44px targets, `capture="environment"` for photos; copy files out of a file input **before** clearing it.
 - `exactOptionalPropertyTypes`: optional props that receive possibly-undefined values must be typed `?: T | undefined`.
 - Check `src/components/ui/` and `src/components/` before writing anything new.

@@ -74,9 +74,10 @@
   --color-neutral-fg: #374151;
 }
 
-/* Dark mode follows the operating system. Surface steps invert; text steps invert the other way. */
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Dark mode: <html data-theme="dark">. Set before first paint by the script in index.html
+   (saved choice, else the operating system) and switched by ThemeToggle (lib/theme.ts).
+   Surface steps invert; text steps invert the other way. */
+:root[data-theme="dark"] {
     color-scheme: dark;
     --color-surface-0: #111827;
     --color-surface-50: #0b1220;
@@ -109,7 +110,6 @@
     --color-accent-fg: #d8b4fe;
     --color-neutral-bg: #1f2937;
     --color-neutral-fg: #d1d5db;
-  }
 }
 
 html,

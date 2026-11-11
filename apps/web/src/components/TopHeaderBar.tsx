@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { usePageBackTarget } from "../context/PageBackContext.js";
 import { NotificationBell } from "./NotificationBell.js";
+import { ThemeToggle } from "./ThemeToggle.js";
 import { Button } from "./ui/button.js";
 
 export function TopHeaderBar() {
@@ -17,7 +18,10 @@ export function TopHeaderBar() {
           <ArrowLeft size={14} aria-hidden="true" /> {back.label}
         </Button>
       )}
-      <NotificationBell />
+      <div className="ml-auto flex items-center gap-1">
+        <ThemeToggle />
+        <NotificationBell />
+      </div>
     </div>
   );
 }
