@@ -15,3 +15,10 @@ node_modules
 !.env.example
 docs
 prototypes
+# The Android app is built on a developer PC, never in the server images (its build folders are large).
+apps/mobile
+**/.gradle
+*.apk
+*.aab
+*.jks
+*.keystore
