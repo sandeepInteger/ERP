@@ -4,7 +4,7 @@ import { z } from "zod";
 import { FE_LOCATION_VIEW_ROLES, Role } from "@erp/types";
 import { forbidden, httpError, notFound } from "../../lib/http.js";
 import { assertCanWorkOnSite, logEvent, personName } from "./ericsson.shared.js";
-import { acceptPoints, checkInDistance, isFar, locationIntervalSeconds, visitMinutes } from "./visits.logic.js";
+import { acceptPoints, checkInDistance, isFar, locationIntervalSeconds, onSiteMinutes, pointsRoom } from "./visits.logic.js";
 
 // Field engineer site visits: Check in / Check out with location, and the location points the phone
 // sends while checked in. Location is only ever recorded inside a visit, and only after the FE agreed.
@@ -60,7 +60,7 @@ function shapeVisit(v: VisitRow, now: Date) {
     checkOutAt: v.checkOutAt,
     checkOut: v.checkOutLat != null && v.checkOutLng != null ? { lat: v.checkOutLat, lng: v.checkOutLng, accuracy: v.checkOutAccuracy } : null,
     checkOutBy: v.checkOutBy,
-    minutes: visitMinutes(v, now),
+    minutes: onSiteMinutes(v, v.points[0]?.recordedAt ?? null, now),
     source: v.source,
     pointCount: v._count.points,
     lastPoint: v.points[0] ?? null,
@@ -123,14 +123,19 @@ export async function visitsRoute(app: FastifyInstance) {
     return { visit: shapeVisit(visit, new Date()), intervalSeconds: intervalSeconds() };
   });
 
-  /** Location points taken while checked in. Late uploads (phone was offline) are accepted if they fall inside the visit. */
-  app.post("/api/field/visits/:id/points", guard, async (req) => {
+  /**
+   * Location points taken while checked in. Late uploads (phone was offline) are accepted if they fall inside the visit.
+   * Limits keep a faulty or abused client from filling the database: 60 uploads a minute (normal use is one per
+   * interval, plus a few back-to-back batches after being offline; the phone retries on 429) and MAX_POINTS_PER_VISIT.
+   */
+  app.post("/api/field/visits/:id/points", { ...guard, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (req) => {
     const { id } = IdParams.parse(req.params);
     const { points } = PointsSchema.parse(req.body);
     const visit = await app.db.ericssonSiteVisit.findUnique({ where: { id }, select: { userId: true, checkInAt: true, checkOutAt: true } });
     if (!visit) throw notFound("Visit not found");
     if (visit.userId !== req.user.sub) throw forbidden("This isn't your visit");
-    const ok = acceptPoints(visit, points.map((p) => ({ ...p, recordedAt: new Date(p.recordedAt) })), new Date());
+    const existing = await app.db.ericssonLocationPoint.count({ where: { visitId: id } });
+    const ok = acceptPoints(visit, points.map((p) => ({ ...p, recordedAt: new Date(p.recordedAt) })), new Date()).slice(0, pointsRoom(existing));
     const { count } = ok.length
       ? await app.db.ericssonLocationPoint.createMany({
         data: ok.map((p) => ({ visitId: id, lat: p.lat, lng: p.lng, accuracy: p.accuracy ?? null, recordedAt: p.recordedAt })),

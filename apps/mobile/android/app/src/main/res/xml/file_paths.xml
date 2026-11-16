@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Only the app's own folders can be shared: camera photos are saved in getExternalFilesDir(Pictures)
+     (Capacitor BridgeWebChromeClient), temporary files in the cache. -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
+    <external-files-path name="my_images" path="." />
     <cache-path name="my_cache_images" path="." />
 </paths>

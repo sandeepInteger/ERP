@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
-import { ERICSSON_EDIT_ROLES, ERICSSON_SCOPE_LABELS, ERICSSON_STEPS, ERICSSON_STEP_ORDER, EricssonScope, EricssonStep } from "@erp/types";
+import { ERICSSON_EDIT_ROLES, ERICSSON_FINANCE_VIEW_ROLES, ERICSSON_SCOPE_LABELS, ERICSSON_STEPS, ERICSSON_STEP_ORDER, EricssonScope, EricssonStep } from "@erp/types";
 import { Page, PageHeader } from "../../components/PageHeader.js";
 import { StepBadge } from "../../components/ericsson/StepBadge.js";
 import { Badge } from "../../components/ui/badge.js";
@@ -22,6 +22,8 @@ import type { SiteRow } from "../../lib/ericsson.js";
 
 export default function SitesPage() {
   const me = useMe();
+  const showMoney = ERICSSON_FINANCE_VIEW_ROLES.has(me.role);
+  const cols = showMoney ? 10 : 9;
   const toast = useToast();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -115,14 +117,14 @@ export default function SitesPage() {
                 <TableHead>In step</TableHead>
                 <TableHead>RFX</TableHead>
                 <TableHead>Open items</TableHead>
-                <TableHead className="text-right">SOV value</TableHead>
+                {showMoney && <TableHead className="text-right">SOV value</TableHead>}
                 <TableHead>PM</TableHead>
                 <TableHead>Target</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && !data && <TableEmpty colSpan={10}>Loading…</TableEmpty>}
-              {data && rows.length === 0 && <TableEmpty colSpan={10}>No sites match these filters.</TableEmpty>}
+              {loading && !data && <TableEmpty colSpan={cols}>Loading…</TableEmpty>}
+              {data && rows.length === 0 && <TableEmpty colSpan={cols}>No sites match these filters.</TableEmpty>}
               {rows.map((s) => (
                 <TableRow
                   key={s.id}
@@ -148,7 +150,7 @@ export default function SitesPage() {
                       {!s.openDiscrepancies && !s.openChangeRequests && <span className="text-surface-400">—</span>}
                     </div>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-right tabular-nums">{money(s.sovValue)}</TableCell>
+                  {showMoney && <TableCell className="whitespace-nowrap text-right tabular-nums">{money(s.sovValue)}</TableCell>}
                   <TableCell className="whitespace-nowrap">{s.pmName ?? "—"}</TableCell>
                   <TableCell className="whitespace-nowrap">{date(s.targetDate)}</TableCell>
                 </TableRow>

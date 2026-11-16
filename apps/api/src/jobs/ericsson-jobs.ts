@@ -7,7 +7,7 @@ import { notifyList, notifyUsers } from "../lib/notify.js";
 import { loadWorkSites } from "../modules/ericsson/my-work.service.js";
 import { siteTasks } from "../modules/ericsson/my-work.logic.js";
 import { bimonthlyPeriod } from "../modules/ericsson/reports.logic.js";
-import { shouldAutoClose } from "../modules/ericsson/visits.logic.js";
+import { FE_VISIT_LINK, shouldAutoClose, visitManagerId, visitManagerLink } from "../modules/ericsson/visits.logic.js";
 import { logEvent } from "../modules/ericsson/ericsson.shared.js";
 import { FE_VISIT_AUTO_CLOSE_HOURS } from "@erp/types";
 import { escalationsDue, isWeekdayAfter, localIsoDate, reportDayAfter } from "./ericsson-jobs.logic.js";
@@ -91,21 +91,25 @@ export async function runEricssonJobs(app: FastifyInstance, now = new Date()): P
   // 4. Site visits an FE forgot to check out of: close them (location sharing stops) and tell the FE and their manager.
   const open = await app.db.ericssonSiteVisit.findMany({
     where: { checkOutAt: null, checkInAt: { lt: new Date(now.getTime() - FE_VISIT_AUTO_CLOSE_HOURS * 3_600_000) } },
-    select: { id: true, siteId: true, checkInAt: true, checkOutAt: true, user: { select: { id: true, firstName: true, lastName: true, managerId: true } }, site: { select: { siteCode: true } } },
+    select: { id: true, siteId: true, checkInAt: true, checkOutAt: true, user: { select: { id: true, firstName: true, lastName: true, managerId: true } }, site: { select: { siteCode: true, deliveryLeadId: true, pmId: true } } },
   });
   for (const v of open.filter((x) => shouldAutoClose(x, now))) {
     const { count } = await app.db.ericssonSiteVisit.updateMany({ where: { id: v.id, checkOutAt: null }, data: { checkOutAt: now, checkOutBy: "AUTO" } });
     if (!count) continue;
     const name = `${v.user.firstName} ${v.user.lastName}`;
     await logEvent(app.db, v.siteId, null, "CHECK_OUT", `${name} was checked out automatically after ${FE_VISIT_AUTO_CLOSE_HOURS} hours`);
-    await notifyUsers(app, [v.user.id, v.user.managerId], {
+    // The FE gets a link to their own home screen; the manager (FE manager → site DL → site PM) a page their role can open.
+    const notice = {
       type: "VISIT_AUTO_CLOSED",
       title: `Checked out automatically: ${name} at ${v.site.siteCode}`,
       body: `The visit was still open after ${FE_VISIT_AUTO_CLOSE_HOURS} hours, so location sharing was stopped. Remember to press Check out when leaving the site.`,
-      link: `/ericsson/sites/${v.siteId}?tab=visits`,
       siteId: v.siteId,
       dedupeKey: `visit-auto-close:${v.id}`,
-    });
+    };
+    await notifyUsers(app, [v.user.id], { ...notice, link: FE_VISIT_LINK });
+    const managerId = visitManagerId(v.user, v.site);
+    const manager = managerId ? await app.db.user.findUnique({ where: { id: managerId }, select: { role: true } }) : null;
+    if (managerId && manager) await notifyUsers(app, [managerId], { ...notice, link: visitManagerLink(v.siteId, manager.role) });
     summary.visitsClosed++;
   }
 

@@ -72,8 +72,10 @@ export interface Summary {
   awaitingRfx: number;
   readyToInvoice: number;
   openChangeRequests: number;
-  pendingCrValue: number;
-  unbilledValue: number;
+  /** null when the signed-in role may not see money. */
+  pendingCrValue: number | null;
+  /** null when the signed-in role may not see money (same rule as the revenue report). */
+  unbilledValue: number | null;
   attention: { kind: string; siteId: string; siteCode: string; title: string; detail: string; days: number }[];
 }
 

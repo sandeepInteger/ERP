@@ -174,7 +174,7 @@ export default function SiteDetailPage() {
               <CardHeader><CardTitle>Milestones & money</CardTitle></CardHeader>
               <CardContent>
                 <Facts rows={[
-                  ["SOV", site.sovAcceptedAt ? `v${site.sovVersion} · ${money(site.sovValue)} · accepted ${date(site.sovAcceptedAt)}` : "Not accepted"],
+                  ["SOV", site.sovAcceptedAt ? `v${site.sovVersion}${site.sovValue != null ? ` · ${money(site.sovValue)}` : ""} · accepted ${date(site.sovAcceptedAt)}` : "Not accepted"],
                   ["RFX", site.rfxAcceptedAt ? `${site.rfxNumber} · accepted ${date(site.rfxAcceptedAt)}` : site.rfxRequestedAt ? `Requested ${date(site.rfxRequestedAt)}` : "—"],
                   ["Execution", site.executionStartedAt ? `Started ${date(site.executionStartedAt)}${site.sowCompletedAt ? ` · SOW complete ${date(site.sowCompletedAt)}` : ""}` : "—"],
                   ["VSS", site.vssOutcome ? `${date(site.vssDate)} · ${VSS_OUTCOME_LABELS[site.vssOutcome as VssOutcome]}` : "—"],

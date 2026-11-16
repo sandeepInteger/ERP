@@ -71,6 +71,14 @@ export function billingStatus(s: Pick<ReportSiteInput, "executionStartedAt" | "i
   return "NOT_STARTED";
 }
 
+/** Contract value (SOV + approved CRs) of sites whose work has started but whose invoice is not in SRM yet.
+ *  The dashboard and the revenue report both use this, so the "Unbilled" figure is the same everywhere. */
+export function unbilledValue(
+  sites: Pick<ReportSiteInput, "sovValue" | "approvedCrTotal" | "executionStartedAt" | "invoiceUploadedAt" | "invoiceApprovedAt">[],
+): number {
+  return round2(sites.reduce((sum, s) => (billingStatus(s) === "UNBILLED" ? sum + s.sovValue + s.approvedCrTotal : sum), 0));
+}
+
 /** YYYY-MM-DD bounds; `to` is inclusive of the whole day. */
 function inRange(d: Date, from: string, to: string): boolean {
   const iso = d.toISOString().slice(0, 10);
@@ -111,7 +119,7 @@ export function buildReport(sites: ReportSiteInput[], from: string, to: string):
     totals: {
       contractValue,
       notStarted: byStatus("NOT_STARTED"),
-      unbilled: byStatus("UNBILLED"),
+      unbilled: unbilledValue(sites),
       billed: byStatus("BILLED"),
       approved: byStatus("APPROVED"),
       cost,

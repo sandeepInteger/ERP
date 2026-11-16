@@ -66,12 +66,20 @@ const ERICSSON_LISTS: { key: string; name: string; frequency: string; descriptio
   { key: "VENDOR_INVOICING", name: "Vendor invoicing", frequency: "As site/scope is completed", description: "SOP: Narsimha Rao / Aniket Gupta (add their emails)", recipients: [] },
 ];
 
-// Escalation ladder. The SOP lists the Sales leader as both 2nd and 3rd level; this default
-// uses PM → Ops leader → Sales leader until the business confirms. Admins can change it.
+// Escalation ladder, from the SOP's Detailed R&R (page 3): PM (Vidhya) is level 1, the Sales
+// leader (Chris) is level 2. The Ops leader is also level 2 in the general R&R, so that role is
+// included for when someone holds it. Level 3 is "Management" (Admin). Admins can change it.
 const ERICSSON_ESCALATION = [
   { level: 1, afterDays: 3, roles: ["PROJECT_MANAGER"] as Role[] },
-  { level: 2, afterDays: 5, roles: ["OPS_LEADER"] as Role[] },
-  { level: 3, afterDays: 8, roles: ["SALES_LEADER"] as Role[] },
+  { level: 2, afterDays: 5, roles: ["SALES_LEADER", "OPS_LEADER"] as Role[] },
+  { level: 3, afterDays: 8, roles: ["ADMIN"] as Role[] },
+];
+// The ladder seeded before 2026-11-12. A database still on exactly this one is moved to the new
+// default; one an admin has edited is left alone.
+const OLD_ERICSSON_ESCALATION = [
+  { level: 1, afterDays: 3, roles: ["PROJECT_MANAGER"] },
+  { level: 2, afterDays: 5, roles: ["OPS_LEADER"] },
+  { level: 3, afterDays: 8, roles: ["SALES_LEADER"] },
 ];
 
 async function seedNotifications() {
@@ -85,8 +93,14 @@ async function seedNotifications() {
       create: { client: "ERICSSON", key: l.key, ...meta, userIds: l.recipients.map((e) => idOf.get(e)).filter((x): x is string => Boolean(x)), emails: [] },
     });
   }
-  if ((await db.escalationRule.count({ where: { client: "ERICSSON" } })) === 0) {
-    await db.escalationRule.createMany({ data: ERICSSON_ESCALATION.map((r) => ({ client: "ERICSSON", ...r })) });
+  const current = await db.escalationRule.findMany({ where: { client: "ERICSSON" }, orderBy: { level: "asc" }, select: { level: true, afterDays: true, roles: true } });
+  const isOldDefault = JSON.stringify(current) === JSON.stringify(OLD_ERICSSON_ESCALATION);
+  if (current.length === 0 || isOldDefault) {
+    await db.$transaction([
+      db.escalationRule.deleteMany({ where: { client: "ERICSSON" } }),
+      db.escalationRule.createMany({ data: ERICSSON_ESCALATION.map((r) => ({ client: "ERICSSON", ...r })) }),
+    ]);
+    if (isOldDefault) console.log("escalation ladder: moved to SOP Detailed R&R (L2 Sales leader, L3 Admin)");
   }
   console.log(`distribution lists (Ericsson): ${ERICSSON_LISTS.length}, escalation levels: ${ERICSSON_ESCALATION.length}`);
 }

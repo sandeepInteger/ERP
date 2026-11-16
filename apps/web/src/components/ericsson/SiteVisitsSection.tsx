@@ -31,7 +31,7 @@ function routeUrl(points: Point[]): string {
 }
 const metres = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`);
 const duration = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`);
-const OUT_BY = { FE: "", MANAGER: "closed by a manager", AUTO: "closed automatically" } as const;
+const OUT_BY = { FE: "", MANAGER: "closed by a manager", AUTO: "closed automatically · time counted to last reading" } as const;
 
 function Trail({ visitId }: { visitId: string }) {
   const { data, error } = useApi<Point[]>(`/ericsson/visits/${visitId}/points`);
@@ -139,7 +139,7 @@ export function SiteVisitsSection({ siteId, hasMapPosition }: { siteId: string; 
                   <TableCell className="whitespace-nowrap">
                     {r.checkOutAt
                       ? <>{r.checkOut ? <a href={mapUrl(r.checkOut)} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">{dateTime(r.checkOutAt)}</a> : dateTime(r.checkOutAt)}
-                        {r.checkOutBy && OUT_BY[r.checkOutBy] && <div className="text-xs text-surface-500">{OUT_BY[r.checkOutBy]}</div>}</>
+                        {r.checkOutBy && OUT_BY[r.checkOutBy] && <div className="text-xs whitespace-normal text-surface-500">{OUT_BY[r.checkOutBy]}</div>}</>
                       : <Badge tone="success">On site</Badge>}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">{duration(r.minutes)}</TableCell>

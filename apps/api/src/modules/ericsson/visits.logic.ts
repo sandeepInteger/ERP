@@ -1,4 +1,4 @@
-import { FE_CHECKIN_FAR_METRES, FE_LOCATION_INTERVAL_SECONDS, FE_VISIT_AUTO_CLOSE_HOURS } from "@erp/types";
+import { FE_CHECKIN_FAR_METRES, FE_LOCATION_INTERVAL_SECONDS, FE_LOCATION_VIEW_ROLES, FE_VISIT_AUTO_CLOSE_HOURS } from "@erp/types";
 
 // Field engineer site visits (check-in / check-out) and their location trail. Pure, unit-tested.
 
@@ -62,3 +62,47 @@ export function shouldAutoClose(visit: { checkInAt: Date; checkOutAt: Date | nul
 export function visitMinutes(visit: { checkInAt: Date; checkOutAt: Date | null }, now: Date): number {
   return Math.max(0, Math.round(((visit.checkOutAt ?? now).getTime() - visit.checkInAt.getTime()) / 60_000));
 }
+
+/**
+ * Time on site as shown to managers. A visit closed automatically (the FE forgot to check out) is counted
+ * to the last location reading, not to the auto-close 14+ hours later; with no later reading it counts
+ * to check-in. Every other visit counts to check-out (or now while open).
+ */
+export function onSiteMinutes(
+  visit: { checkInAt: Date; checkOutAt: Date | null; checkOutBy: string | null },
+  lastPointAt: Date | null,
+  now: Date,
+): number {
+  if (visit.checkOutBy === "AUTO" && visit.checkOutAt) {
+    const until = lastPointAt && lastPointAt < visit.checkOutAt ? lastPointAt : visit.checkInAt;
+    return visitMinutes({ checkInAt: visit.checkInAt, checkOutAt: until }, now);
+  }
+  return visitMinutes(visit, now);
+}
+
+/** Most location readings one visit keeps (14 h at the 30 s test interval is 1,680; the phone buffers 5,000). */
+export const MAX_POINTS_PER_VISIT = 5_000;
+
+/** How many of the accepted points still fit under the per-visit cap. */
+export function pointsRoom(existing: number): number {
+  return Math.max(0, MAX_POINTS_PER_VISIT - existing);
+}
+
+/**
+ * Who is told, besides the FE, when a visit is closed automatically: the FE's manager, else the site's
+ * delivery lead, else the site's PM (same order as expense-claim approval). Never the FE themself.
+ */
+export function visitManagerId(fe: { id: string; managerId: string | null }, site: { deliveryLeadId: string | null; pmId: string | null }): string | null {
+  for (const candidate of [fe.managerId, site.deliveryLeadId, site.pmId]) {
+    if (candidate && candidate !== fe.id) return candidate;
+  }
+  return null;
+}
+
+/** Notification link for a manager: the Check-ins tab if their role may see locations, else the site page. */
+export function visitManagerLink(siteId: string, role: string): string {
+  return FE_LOCATION_VIEW_ROLES.has(role) ? `/ericsson/sites/${siteId}?tab=visits` : `/ericsson/sites/${siteId}`;
+}
+
+/** Where an FE's own visit notifications point: their home screen (they can't open manager pages). */
+export const FE_VISIT_LINK = "/field";

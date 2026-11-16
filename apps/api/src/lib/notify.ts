@@ -51,7 +51,20 @@ export async function notifyUsers(app: FastifyInstance, userIds: Iterable<string
 export async function notifyList(app: FastifyInstance, client: string, key: EricssonList, n: NotifyInput, alsoUserIds: (string | null | undefined)[] = []) {
   try {
     const list = await app.db.distributionList.findUnique({ where: { client_key: { client, key } } });
-    await notifyUsers(app, [...(list?.userIds ?? []), ...alsoUserIds], n, list?.emails ?? []);
+    const userIds = list?.userIds ?? [];
+    const emails = list?.emails ?? [];
+    if (!userIds.length && !emails.length) {
+      // A list nobody is on must not swallow the message: send it to the admins instead, and say why.
+      app.log.warn({ key }, "Distribution list has no recipients; sending to admins");
+      const admins = await app.db.user.findMany({ where: { role: "ADMIN", isActive: true }, select: { id: true } });
+      const name = list?.name ?? key;
+      await notifyUsers(app, [...admins.map((a) => a.id), ...alsoUserIds], {
+        ...n,
+        body: `${n.body ? `${n.body}\n\n` : ""}Sent to admins because the "${name}" list has no recipients. Add them under Admin › Notifications.`,
+      });
+      return;
+    }
+    await notifyUsers(app, [...userIds, ...alsoUserIds], n, emails);
   } catch (err) {
     app.log.error({ err, key }, "List notification failed");
   }

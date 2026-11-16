@@ -5,6 +5,8 @@ import {
   CR_OPEN_STATUSES, ERICSSON_ACTIONS, ERICSSON_STEPS, ERICSSON_STEP_ORDER, EricssonAction, EricssonStep,
   VSS_OUTCOME_LABELS, canPerformEricssonAction,
 } from "@erp/types";
+import { unbilledValue } from "./reports.logic.js";
+import { canSeeMoney, hideSiteMoney } from "./money.logic.js";
 import { day, defined, forbidden, httpError, notFound } from "../../lib/http.js";
 import { PERSON_SELECT, loadSnapshot, logEvent, personName } from "./ericsson.shared.js";
 import { NEXT_STEP, availableActions, gateFailures } from "./ericsson.workflow.js";
@@ -19,7 +21,7 @@ function daysSince(d: Date): number {
 
 // ─── List ────────────────────────────────────────────────────────────────────
 
-export async function listSites(app: FastifyInstance, q: ListSitesQuery, viewerId: string) {
+export async function listSites(app: FastifyInstance, q: ListSitesQuery, viewerId: string, viewerRole: string) {
   const and: Prisma.EricssonSiteWhereInput[] = [];
   if (q.step) and.push({ step: q.step as DbStep });
   else if (!q.includeClosed) and.push({ step: { not: "CLOSED" } });
@@ -52,7 +54,7 @@ export async function listSites(app: FastifyInstance, q: ListSitesQuery, viewerI
     step: s.step,
     daysInStep: daysSince(s.stepChangedAt),
     rfxNumber: s.rfxNumber,
-    sovValue: s.sovValue,
+    sovValue: canSeeMoney(viewerRole) ? s.sovValue : null,
     targetDate: s.targetDate,
     pmName: personName(s.pm),
     deliveryLeadName: personName(s.deliveryLead),
@@ -62,6 +64,9 @@ export async function listSites(app: FastifyInstance, q: ListSitesQuery, viewerI
 }
 
 // ─── Detail ──────────────────────────────────────────────────────────────────
+
+/** Activity entries written by FE check-in / check-out (visits.route.ts, auto-close job). */
+const VISIT_EVENT_TYPES = ["CHECK_IN", "CHECK_OUT"];
 
 export async function getSite(app: FastifyInstance, id: string, viewerRole: string) {
   const site = await app.db.ericssonSite.findUnique({
@@ -80,7 +85,9 @@ export async function getSite(app: FastifyInstance, id: string, viewerRole: stri
       materials: { orderBy: { createdAt: "asc" } },
       changeRequests: { orderBy: { number: "desc" }, include: { raisedBy: { select: PERSON_SELECT } } },
       dailyLogs: { orderBy: { workDate: "desc" }, include: { author: { select: PERSON_SELECT } } },
-      events: { orderBy: { createdAt: "desc" }, take: 100, include: { actor: { select: PERSON_SELECT } } },
+      // Workflow history and FE check-in/out entries are capped separately, so daily check-ins never push
+      // older workflow history out of the Activity tab. Both are merged back into one list below.
+      events: { where: { type: { notIn: VISIT_EVENT_TYPES } }, orderBy: { createdAt: "desc" }, take: 100, include: { actor: { select: PERSON_SELECT } } },
       crew: { include: { user: { select: PERSON_SELECT } }, orderBy: { createdAt: "asc" } },
       workItems: {
         where: { status: { not: "CANCELLED" } },
@@ -94,8 +101,16 @@ export async function getSite(app: FastifyInstance, id: string, viewerRole: stri
   });
   if (!site) throw notFound("Site not found");
 
+  const visitEvents = await app.db.ericssonSiteEvent.findMany({
+    where: { siteId: id, type: { in: VISIT_EVENT_TYPES } },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: { actor: { select: PERSON_SELECT } },
+  });
+  site.events = [...site.events, ...visitEvents].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
   const snapshot = await loadSnapshot(app.db, id);
-  return { ...site, daysInStep: daysSince(site.stepChangedAt), actions: availableActions(viewerRole, snapshot) };
+  return hideSiteMoney({ ...site, daysInStep: daysSince(site.stepChangedAt), actions: availableActions(viewerRole, snapshot) }, viewerRole);
 }
 
 // ─── Create / update ─────────────────────────────────────────────────────────
@@ -232,7 +247,7 @@ export async function performAction(app: FastifyInstance, siteId: string, body: 
 
 const STALE_DAYS = 3;
 
-export async function summary(app: FastifyInstance) {
+export async function summary(app: FastifyInstance, role: string) {
   const [byStep, openCrs, sites] = await Promise.all([
     app.db.ericssonSite.groupBy({ by: ["step"], _count: { _all: true } }),
     app.db.ericssonChangeRequest.findMany({
@@ -243,7 +258,8 @@ export async function summary(app: FastifyInstance) {
       where: { step: { not: "CLOSED" } },
       select: {
         id: true, siteCode: true, venueName: true, step: true, stepChangedAt: true, sovValue: true,
-        rfxRequestedAt: true, rfxAcceptedAt: true, executionStartedAt: true, invoiceUploadedAt: true,
+        rfxRequestedAt: true, rfxAcceptedAt: true, executionStartedAt: true, invoiceUploadedAt: true, invoiceApprovedAt: true,
+        changeRequests: { where: { status: "APPROVED" }, select: { total: true } },
         materials: { where: { status: "BACK_ORDERED" }, select: { item: true, eta: true } },
         _count: { select: { discrepancies: { where: { isResolved: false } } } },
       },
@@ -253,10 +269,16 @@ export async function summary(app: FastifyInstance) {
   const counts = Object.fromEntries(ERICSSON_STEP_ORDER.map((s) => [s, 0])) as Record<EricssonStep, number>;
   for (const row of byStep) counts[row.step as unknown as EricssonStep] = row._count._all;
 
-  // Work done but not yet invoiced: SOV value of sites past execution start without an SRM upload.
-  const unbilled = sites
-    .filter((s) => s.executionStartedAt && !s.invoiceUploadedAt)
-    .reduce((sum, s) => sum + Number(s.sovValue ?? 0), 0);
+  // Work done but not yet invoiced: same definition as the revenue & cost report (SOV + approved CRs).
+  // Money is only shown to roles that may see the financial reports.
+  const showMoney = canSeeMoney(role);
+  const unbilled = showMoney
+    ? unbilledValue(sites.map((s) => ({
+        sovValue: Number(s.sovValue ?? 0),
+        approvedCrTotal: s.changeRequests.reduce((a, c) => a + Number(c.total), 0),
+        executionStartedAt: s.executionStartedAt, invoiceUploadedAt: s.invoiceUploadedAt, invoiceApprovedAt: s.invoiceApprovedAt,
+      })))
+    : null;
 
   const attention: { kind: string; siteId: string; siteCode: string; title: string; detail: string; days: number }[] = [];
   for (const s of sites) {
@@ -285,7 +307,7 @@ export async function summary(app: FastifyInstance) {
     awaitingRfx: counts[EricssonStep.SOV_RFX],
     readyToInvoice: counts[EricssonStep.INVOICING],
     openChangeRequests: openCrs.length,
-    pendingCrValue: openCrs.reduce((sum, c) => sum + Number(c.total), 0),
+    pendingCrValue: showMoney ? openCrs.reduce((sum, c) => sum + Number(c.total), 0) : null,
     unbilledValue: unbilled,
     attention: attention.slice(0, 20),
   };

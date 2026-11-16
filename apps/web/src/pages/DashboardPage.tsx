@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { AlertTriangle, FileWarning, RadioTower, Receipt, Timer, Wallet } from "lucide-react";
 
-import { ERICSSON_STEPS, ERICSSON_STEP_ORDER, EricssonStep } from "@erp/types";
+import { ERICSSON_FINANCE_VIEW_ROLES, ERICSSON_STEPS, ERICSSON_STEP_ORDER, EricssonStep } from "@erp/types";
 import { Page, PageHeader } from "../components/PageHeader.js";
 import { SummaryStatCard } from "../components/SummaryStatCard.js";
 import { Badge } from "../components/ui/badge.js";
@@ -37,9 +37,11 @@ export default function DashboardPage() {
       <section aria-label="Key figures" className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
         <SummaryStatCard icon={RadioTower} label="Active sites" value={s?.activeSites ?? "–"} caption="Not yet closed" to="/ericsson/sites" />
         <SummaryStatCard icon={Timer} label="Awaiting RFX" value={s?.awaitingRfx ?? "–"} caption="Step 3" to="/ericsson/sites?step=SOV_RFX" />
-        <SummaryStatCard icon={FileWarning} label="Open CRs" value={s?.openChangeRequests ?? "–"} caption={s ? `${money(s.pendingCrValue)} pending` : undefined} to="/ericsson/change-requests" />
+        <SummaryStatCard icon={FileWarning} label="Open CRs" value={s?.openChangeRequests ?? "–"} caption={s?.pendingCrValue != null ? `${money(s.pendingCrValue)} pending` : "Awaiting a decision"} to="/ericsson/change-requests" />
         <SummaryStatCard icon={Receipt} label="Ready to invoice" value={s?.readyToInvoice ?? "–"} caption="Step 9" to="/ericsson/sites?step=INVOICING" />
-        <SummaryStatCard icon={Wallet} label="Unbilled" value={s ? money(s.unbilledValue) : "–"} caption="Work started, not invoiced" />
+        {ERICSSON_FINANCE_VIEW_ROLES.has(me.role) && (
+          <SummaryStatCard icon={Wallet} label="Unbilled" value={s?.unbilledValue != null ? money(s.unbilledValue) : "–"} caption="Work started, not invoiced (incl. approved CRs)" to="/ericsson/reports" />
+        )}
       </section>
 
       <div className="grid gap-5 lg:grid-cols-2">

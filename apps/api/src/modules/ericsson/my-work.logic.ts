@@ -27,6 +27,7 @@ export interface WorkSite {
   vssOutcome: string | null;
   ae202SubmittedAt: Date | null;
   invoiceUploadedAt: Date | null;
+  invoiceApprovedAt: Date | null;
   changeRequests: { id: string; number: number; title: string; status: string; raisedById: string; updatedAt: Date }[];
 }
 
@@ -109,7 +110,8 @@ export function siteTasks(s: WorkSite, now: Date): Task[] {
       break;
     case EricssonStep.INVOICING:
       if (!s.invoiceUploadedAt) add("apm", "invoice", "Upload the invoice to the Ericsson SRM portal", "Step 9 · AE202 stamped", "overview");
-      else add("apm", "invoice-approval", "Follow up on Ericsson's invoice approval", "Step 9 · invoice uploaded", "overview", age(s.invoiceUploadedAt, now));
+      else if (!s.invoiceApprovedAt) add("apm", "invoice-approval", "Follow up on Ericsson's invoice approval", "Step 9 · invoice uploaded", "overview", age(s.invoiceUploadedAt, now));
+      else add("pm", "close", "Close the site", "Step 9 · Ericsson approved the invoice", "overview", age(s.invoiceApprovedAt, now));
       break;
     case EricssonStep.CLOSED:
       break;

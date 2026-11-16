@@ -76,7 +76,7 @@ export async function ericssonReportsRoute(app: FastifyInstance) {
 
   // Site tracker export, with the same filters as the list.
   app.get("/api/ericsson/sites/export", guard, async (req, reply) => {
-    const rows = await listSites(app, ListSitesQuerySchema.parse(req.query), req.user.sub);
+    const rows = await listSites(app, ListSitesQuerySchema.parse(req.query), req.user.sub, req.user.role);
     type Row = (typeof rows)[number];
     const showMoney = ERICSSON_FINANCE_VIEW_ROLES.has(req.user.role);
     const columns: SheetSpec<Row>["columns"] = [

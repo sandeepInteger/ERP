@@ -19,7 +19,7 @@ export async function loadWorkSites(db: PrismaClient): Promise<LoadedWorkSite[]>
     select: {
       id: true, siteCode: true, venueName: true, step: true, stepChangedAt: true,
       pmId: true, apmId: true, deliveryLeadId: true, coordinatorId: true,
-      rfxRequestedAt: true, vssOutcome: true, ae202SubmittedAt: true, invoiceUploadedAt: true,
+      rfxRequestedAt: true, vssOutcome: true, ae202SubmittedAt: true, invoiceUploadedAt: true, invoiceApprovedAt: true,
       documents: { select: { type: true } },
       materials: { select: { status: true } },
       dailyLogs: { select: { workDate: true }, orderBy: { workDate: "desc" }, take: 1 },
@@ -47,6 +47,7 @@ export async function loadWorkSites(db: PrismaClient): Promise<LoadedWorkSite[]>
     vssOutcome: r.vssOutcome,
     ae202SubmittedAt: r.ae202SubmittedAt,
     invoiceUploadedAt: r.invoiceUploadedAt,
+    invoiceApprovedAt: r.invoiceApprovedAt,
     changeRequests: r.changeRequests,
     hasEmptySlot: r.step !== "CLOSED" && (!r.pmId || !r.apmId || !r.deliveryLeadId),
   }));

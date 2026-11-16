@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { assertCanEdit } from "./ericsson.shared.js";
+import { hideSiteMoney } from "./money.logic.js";
 import { CreateSiteSchema, ListSitesQuerySchema, SiteActionSchema, UpdateSiteSchema } from "./sites.schema.js";
 import { createSite, getSite, listSites, performAction, summary, updateSite } from "./sites.service.js";
 
@@ -12,9 +13,9 @@ const IdParams = z.object({ id: z.string().min(1) });
 export async function ericssonSitesRoute(app: FastifyInstance) {
   const guard = { preHandler: app.authenticate };
 
-  app.get("/api/ericsson/summary", guard, async () => summary(app));
+  app.get("/api/ericsson/summary", guard, async (req) => summary(app, req.user.role));
 
-  app.get("/api/ericsson/sites", guard, async (req) => listSites(app, ListSitesQuerySchema.parse(req.query), req.user.sub));
+  app.get("/api/ericsson/sites", guard, async (req) => listSites(app, ListSitesQuerySchema.parse(req.query), req.user.sub, req.user.role));
 
   app.post("/api/ericsson/sites", guard, async (req, reply) => {
     assertCanEdit(req.user.role);
@@ -30,7 +31,7 @@ export async function ericssonSitesRoute(app: FastifyInstance) {
   app.patch("/api/ericsson/sites/:id", guard, async (req) => {
     assertCanEdit(req.user.role);
     const { id } = IdParams.parse(req.params);
-    return updateSite(app, id, UpdateSiteSchema.parse(req.body), req.user.sub);
+    return hideSiteMoney(await updateSite(app, id, UpdateSiteSchema.parse(req.body), req.user.sub), req.user.role);
   });
 
   app.post("/api/ericsson/sites/:id/actions", guard, async (req) => {
