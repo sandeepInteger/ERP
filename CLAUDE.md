@@ -31,6 +31,8 @@ Features 3.6–3.13, hand-off hooks, light/dark switch and responsive layouts ar
 `feature/ericsson-fe-and-ops`, so it contains everything above; pushed up to `890c7b8`; PR:
 https://github.com/Integer-Telecom-Inc/Integer-ERP-System/pull/new/feature/fe-checkin-android). Merge order: `feature/ericsson-fe-and-ops` → `main`, then this one.
 Ask before committing; push to a review branch, not `main`.
+**Demo copy (2026-11-17):** remote `personal` = `https://github.com/sandeepInteger/ERP.git` (user's personal copy for Render demo hosting,
+see `infra/render/`). Commits `4e7dce0` (Render config) and `920eeaf` (my-work test fixture missing `invoiceApprovedAt`, which broke `tsc` build) are pushed there only, not to `origin`.
 
 **Built (Ericsson IBS module):**
 | # | Feature | Where (web route) |
@@ -100,8 +102,9 @@ packages/types/src/       roles.ts (Role, labels, role sets) · ericsson.ts (ste
 tools/e2e/ericsson-flow.mjs   end-to-end API check (120 checks); needs DEV_LOGIN + seeded users
 docker-compose.test.yml   Postgres 16 + migrate/seed + API + web(nginx) on :8080, e2e profile
 infra/render/             free demo hosting (Render + Neon Postgres, no card): web.Dockerfile + nginx.conf.template
-                          (nginx forwards /api to https://${API_HOST}). API service uses apps/api/Dockerfile with
-                          NODE_ENV=test + DEV_LOGIN=true and start command migrate → seed → server. Demo only: dev sign-in is open; uploads are wiped on restart.
+                          (nginx forwards /api to https://${API_HOST}, host only, no https://) and api.Dockerfile (= apps/api/Dockerfile
+                          but CMD runs migrate → seed → server; Render's Docker Command field mangled `sh -c "…"`, leave it empty).
+                          API env: NODE_ENV=test, DEV_LOGIN=true, SEED_DEMO=true. Demo only: dev sign-in is open; uploads are wiped on restart.
 docs/local-dev-setup.md   full setup, users & sample data, FE sign-in, check-in, FE work, FE expenses, Docker
 docs/android-app.md       Android app: how check-in/location works, build, emulator, real phone, release, known limits
 ```
