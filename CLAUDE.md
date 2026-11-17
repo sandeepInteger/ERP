@@ -99,6 +99,9 @@ packages/types/src/       roles.ts (Role, labels, role sets) · ericsson.ts (ste
 .claude/settings.json + .claude/hooks/handoff-check.mjs   hooks that keep this file current (see §10)
 tools/e2e/ericsson-flow.mjs   end-to-end API check (120 checks); needs DEV_LOGIN + seeded users
 docker-compose.test.yml   Postgres 16 + migrate/seed + API + web(nginx) on :8080, e2e profile
+infra/render/             free demo hosting (Render + Neon Postgres, no card): web.Dockerfile + nginx.conf.template
+                          (nginx forwards /api to https://${API_HOST}). API service uses apps/api/Dockerfile with
+                          NODE_ENV=test + DEV_LOGIN=true and start command migrate → seed → server. Demo only: dev sign-in is open; uploads are wiped on restart.
 docs/local-dev-setup.md   full setup, users & sample data, FE sign-in, check-in, FE work, FE expenses, Docker
 docs/android-app.md       Android app: how check-in/location works, build, emulator, real phone, release, known limits
 ```
