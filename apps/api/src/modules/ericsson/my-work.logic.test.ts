@@ -11,7 +11,7 @@ function site(over: Partial<WorkSite> = {}): WorkSite {
     id: "s1", siteCode: "E-1", venueName: "Venue", step: EricssonStep.DOCS_RECEIVED, stepChangedAt: daysAgo(0),
     assignees: { pm: "pm", apm: "apm", deliveryLead: "dl", coordinator: "pc" },
     docTypes: new Set(), openDiscrepancies: 0, rfxRequestedAt: null, materialStatuses: [], lastLogDate: null,
-    dailyLogCount: 0, vssOutcome: null, ae202SubmittedAt: null, invoiceUploadedAt: null, changeRequests: [],
+    dailyLogCount: 0, vssOutcome: null, ae202SubmittedAt: null, invoiceUploadedAt: null, invoiceApprovedAt: null, changeRequests: [],
     ...over,
   };
 }
